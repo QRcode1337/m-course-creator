@@ -4,7 +4,8 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const databasePath = process.env.DATABASE_PATH || "./data/app.db";
+const defaultDbPath = process.env.VERCEL ? "/tmp/app.db" : "./data/app.db";
+const databasePath = process.env.DATABASE_PATH || defaultDbPath;
 const resolvedDbPath = path.resolve(process.cwd(), databasePath);
 fs.mkdirSync(path.dirname(resolvedDbPath), { recursive: true });
 
