@@ -1,0 +1,27 @@
+{
+  "ignorePatterns": "node_modules\ndist\nbuild\ncoverage\n.vercel\n.netlify\npackage-lock.json\npnpm-lock.yaml\nyarn.lock\n*.min.js\n*.map",
+  "customContext": {
+    "files": [
+      {
+        "scope": [
+          "api/**/*.{ts,tsx,js,jsx}",
+          "client/src/**/*.{ts,tsx,js,jsx,css}",
+          "drizzle/**/*.{ts,sql}",
+          "server/**/*.{ts,tsx,js,jsx}"
+        ],
+        "path": "AGENTS.md",
+        "description": "Project operating instructions and agent workflow guidance"
+      },
+      {
+        "scope": [
+          "api/**/*.{ts,tsx,js,jsx}",
+          "client/src/**/*.{ts,tsx,js,jsx,css}",
+          "drizzle/**/*.{ts,sql}",
+          "server/**/*.{ts,tsx,js,jsx}"
+        ],
+        "path": "CLAUDE.md",
+        "description": "Project-specific coding conventions and review context"
+      }
+    ]
+  }
+}
