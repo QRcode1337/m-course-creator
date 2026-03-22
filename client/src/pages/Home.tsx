@@ -5,8 +5,7 @@ import { useAuth } from "../hooks/useAuth";
 import { toast } from "sonner";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Loader2, Sparkles, Brain, Layers, Library, Settings, Upload } from "lucide-react";
-import { NodeGraphBackground } from "../components/NodeGraphBackground";
+import { Loader2, Sparkles, Brain, Layers } from "lucide-react";
 import { CourseSetupWizard } from "../components/CourseSetupWizard";
 
 const PLACEHOLDER_TOPICS = [
@@ -46,7 +45,7 @@ const THEME_CATEGORIES = [
 ];
 
 export default function Home() {
-  const { user, loading } = useAuth();
+  const { loading } = useAuth();
   const [, navigate] = useLocation();
   const [topic, setTopic] = useState("");
   const [showWizard, setShowWizard] = useState(false);
@@ -127,39 +126,6 @@ export default function Home() {
   // Main logged-in home page
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border/50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                Course Creator
-              </span>
-            </div>
-            <nav className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => navigate("/flashcards")} className="gap-2">
-                <Brain className="w-4 h-4" />
-                <span className="hidden sm:inline">Flashcards</span>
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => navigate("/library")} className="gap-2">
-                <Library className="w-4 h-4" />
-                <span className="hidden sm:inline">My Library</span>
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => navigate("/import")} className="gap-2">
-                <Upload className="w-4 h-4" />
-                <span className="hidden sm:inline">Import</span>
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => navigate("/settings")}>
-                <Settings className="w-4 h-4" />
-              </Button>
-            </nav>
-          </div>
-        </div>
-      </header>
-
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-16 md:py-24">
         <div className="max-w-4xl mx-auto text-center space-y-8">
@@ -173,6 +139,11 @@ export default function Home() {
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Enter any topic and let AI create a personalized course with lessons, flashcards, and quizzes
             </p>
+            <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground">
+              <span className="rounded-full border border-border/70 bg-background/70 px-4 py-2">Preview architecture before saving</span>
+              <span className="rounded-full border border-border/70 bg-background/70 px-4 py-2">Import documents into a structured course</span>
+              <span className="rounded-full border border-border/70 bg-background/70 px-4 py-2">Generate quizzes, flashcards, notes, and visuals</span>
+            </div>
           </div>
 
           {/* Search Form */}

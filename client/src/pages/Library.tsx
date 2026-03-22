@@ -1,27 +1,13 @@
-import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../utils/trpc";
 import { useAuth } from "../hooks/useAuth";
-import { useStyleTheme } from "../contexts/StyleThemeContext";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../components/ui/dropdown-menu";
-import { Loader2, Palette, Brain, Layers, Menu, X } from "lucide-react";
-
-const STYLE_THEMES: Record<string, string> = {
-  /* style theme names mapped to display labels */
-};
+import { Loader2, Layers } from "lucide-react";
 
 export default function Library() {
   const { user, loading } = useAuth();
   const [, navigate] = useLocation();
-  const { styleTheme, setStyleTheme } = useStyleTheme();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { data: courses, isLoading } = trpc.courses.list.useQuery(undefined, {
     enabled: !!user,
   });
@@ -41,77 +27,7 @@ export default function Library() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <header className="border-b-2 border-current">
-        <div className="container py-4 md:py-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl md:text-2xl font-bold">Course Creator</h1>
-
-            {/* Desktop Nav */}
-            <div className="hidden md:flex items-center gap-4">
-              {/* Style Theme Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Palette className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {Object.keys(STYLE_THEMES).map((theme) => (
-                    <DropdownMenuItem
-                      key={theme}
-                      onClick={() => setStyleTheme(theme)}
-                      className={styleTheme === theme ? "bg-accent" : ""}
-                    >
-                      {STYLE_THEMES[theme]}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <Button variant="outline" onClick={() => navigate("/flashcards")}>
-                <Brain className="w-4 h-4 mr-2" />
-                Flashcards
-              </Button>
-              <Button variant="outline" onClick={() => navigate("/")}>
-                Create Course
-              </Button>
-            </div>
-
-            {/* Mobile Menu Toggle */}
-            <Button
-              variant="outline"
-              size="icon"
-              className="md:hidden"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              {mobileMenuOpen ? (
-                <X className="w-5 h-5" />
-              ) : (
-                <Menu className="w-5 h-5" />
-              )}
-            </Button>
-          </div>
-
-          {/* Mobile Nav */}
-          {mobileMenuOpen && (
-            <div className="md:hidden mt-4 pt-4 border-t-2 border-current">
-              <div className="flex flex-col gap-2">
-                <Button variant="outline" onClick={() => { navigate("/flashcards"); setMobileMenuOpen(false); }} className="w-full justify-start">
-                  <Brain className="w-4 h-4 mr-2" />
-                  Flashcards
-                </Button>
-                <Button variant="outline" onClick={() => { navigate("/"); setMobileMenuOpen(false); }} className="w-full justify-start">
-                  Create Course
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container py-8 md:py-20">
+      <main className="container py-8 md:py-16">
         <div className="space-y-8 md:space-y-12">
           {/* Page Title */}
           <div className="flex items-start gap-4 md:gap-8">

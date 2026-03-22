@@ -1,7 +1,8 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { StyleThemeProvider } from "./contexts/StyleThemeContext";
 import { Toaster } from "./components/ui/sonner";
+import Header from "./components/Header";
 
 import Home from "./pages/Home";
 import Library from "./pages/Library";
@@ -18,6 +19,10 @@ import CreateCourse from "./pages/CreateCourse";
 import ImportDocument from "./pages/ImportDocument";
 import PreviewCourse from "./pages/PreviewCourse";
 import NotFound from "./pages/NotFound";
+
+function shouldShowHeader(pathname: string) {
+  return !["/preview", "/graph", "/knowledge-graph", "/404"].some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
 
 function AppRoutes() {
   return (
@@ -42,12 +47,23 @@ function AppRoutes() {
   );
 }
 
+function AppChrome() {
+  const [pathname] = useLocation();
+
+  return (
+    <>
+      {shouldShowHeader(pathname) ? <Header /> : null}
+      <AppRoutes />
+    </>
+  );
+}
+
 export default function App() {
   return (
     <ThemeProvider>
       <StyleThemeProvider defaultTheme="light">
         <Toaster />
-        <AppRoutes />
+        <AppChrome />
       </StyleThemeProvider>
     </ThemeProvider>
   );

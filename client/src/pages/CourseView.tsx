@@ -1,36 +1,41 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useParams } from "wouter";
+import {
+  BookOpen,
+  Brain,
+  CheckCircle2,
+  Download,
+  Image,
+  Layers,
+  Loader2,
+  Sparkles,
+} from "lucide-react";
+import { toast } from "sonner";
 import { trpc } from "../utils/trpc";
 import { useAuth } from "../hooks/useAuth";
-import { useStyleTheme } from "../contexts/StyleThemeContext";
-import { toast } from "sonner";
 import { getApiUrl } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../components/ui/dropdown-menu";
-import { Loader2, Palette, Layers, Brain, Download, Image } from "lucide-react";
-
-const STYLE_THEMES: Record<string, string> = {
-  /* style theme names mapped to labels */
-};
+import { Progress } from "../components/ui/progress";
+import { Badge } from "../components/ui/badge";
 
 export default function CourseView() {
   const { user, loading } = useAuth();
   const [, navigate] = useLocation();
   const params = useParams<{ id: string }>();
   const courseId = params.id;
-  const { styleTheme, setStyleTheme } = useStyleTheme();
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const { data: course, isLoading } = trpc.courses.getById.useQuery(
     { courseId },
-    { enabled: !!user && !!courseId }
+    { enabled: !!user && !!courseId },
   );
+  const { data: flashcards = [] } = trpc.flashcards.getAll.useQuery(undefined, {
+    enabled: !!user,
+  });
+  const { data: dueCards = [] } = trpc.flashcards.getDue.useQuery(undefined, {
+    enabled: !!user,
+  });
 
   const initFlashcards = trpc.flashcards.initializeFromCourse.useMutation();
   const utils = trpc.useUtils();
@@ -43,6 +48,41 @@ export default function CourseView() {
       toast.error(error.message || "Failed to generate course images.");
     },
   });
+
+  const totalLessons = useMemo(
+    () => course?.chapters?.reduce((acc: number, chapter: any) => acc + (chapter.lessons?.length || 0), 0) || 0,
+    [course],
+  );
+  const completedLessons = useMemo(
+    () => course?.chapters?.reduce(
+      (acc: number, chapter: any) => acc + (chapter.lessons?.filter((lesson: any) => lesson.completed).length || 0),
+      0,
+    ) || 0,
+    [course],
+  );
+  const courseProgress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+  const totalFlashcards = useMemo(
+    () => course?.chapters?.reduce(
+      (acc: number, chapter: any) =>
+        acc + (chapter.lessons?.reduce((lessonAcc: number, lesson: any) => lessonAcc + (lesson.flashcardCount || 0), 0) || 0),
+      0,
+    ) || 0,
+    [course],
+  );
+
+  const courseFlashcards = useMemo(
+    () => flashcards.filter((card: any) => card.course.id === courseId),
+    [courseId, flashcards],
+  );
+  const dueForCourse = useMemo(
+    () => dueCards.filter((card: any) => card.course.id === courseId).length,
+    [courseId, dueCards],
+  );
+  const masteredForCourse = useMemo(
+    () => courseFlashcards.filter((card: any) => (card.review?.repetitions ?? 0) >= 5).length,
+    [courseFlashcards],
+  );
+  const reviewCoverage = totalFlashcards > 0 ? Math.round((courseFlashcards.length / totalFlashcards) * 100) : 0;
 
   const handleExportPdf = async () => {
     try {
@@ -90,12 +130,6 @@ export default function CourseView() {
     }
   };
 
-  const totalFlashcards = course?.chapters?.reduce(
-    (acc: number, ch: any) =>
-      acc + (ch.lessons?.reduce((la: number, l: any) => la + (l.flashcardCount || 0), 0) || 0),
-    0
-  ) || 0;
-
   if (loading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -119,187 +153,233 @@ export default function CourseView() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <header className="border-b-2 border-current">
-        <div className="container py-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Course Creator</h1>
-            <div className="flex items-center gap-4">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Palette className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {Object.keys(STYLE_THEMES).map((theme) => (
-                    <DropdownMenuItem
-                      key={theme}
-                      onClick={() => setStyleTheme(theme)}
-                      className={styleTheme === theme ? "bg-accent" : ""}
-                    >
-                      {STYLE_THEMES[theme]}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button variant="outline" onClick={() => navigate("/")}>
-                Create Course
-              </Button>
-              <Button variant="outline" onClick={() => navigate("/library")}>
-                My Library
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Course Hero */}
-      <div className="border-b-2 border-current bg-muted/30">
-        <div className="container py-16">
-          <div className="grid grid-cols-12 gap-8">
-            <div className="col-span-12 lg:col-span-1">
-              <div className="w-16 h-16 bg-primary" />
-            </div>
-            <div className="col-span-12 lg:col-span-11 space-y-6">
-              <div className="space-y-4">
-                <h1 className="text-4xl lg:text-5xl font-bold">{course.title}</h1>
-                <div className="border-t-2 border-current w-24" />
+      <div className="border-b border-border/70 bg-[linear-gradient(180deg,hsl(var(--muted)/0.5)_0%,transparent_100%)]">
+        <div className="container py-12">
+          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                <BookOpen className="h-4 w-4 text-primary" />
+                Course workspace
               </div>
-              {course.description && (
-                <p className="text-xl text-muted-foreground max-w-3xl">
-                  {course.description}
-                </p>
-              )}
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2 text-sm uppercase tracking-wide font-bold">
-                  <Layers className="w-4 h-4" />
-                  <span>{course.chapters?.length || 0} Chapters</span>
-                </div>
-                {totalFlashcards > 0 && (
-                  <div className="flex items-center gap-2 text-sm uppercase tracking-wide font-bold text-primary">
-                    <Brain className="w-4 h-4" />
-                    <span>{totalFlashcards} Flashcards</span>
-                  </div>
-                )}
-                {totalFlashcards > 0 && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={handleStudyFlashcards}
-                    disabled={initFlashcards.isPending}
-                  >
-                    {initFlashcards.isPending ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      <>
-                        <Brain className="w-4 h-4 mr-2" />
-                        Study All
-                      </>
-                    )}
-                  </Button>
-                )}
+              <div className="space-y-4">
+                <h1 className="text-4xl font-bold leading-tight lg:text-5xl">{course.title}</h1>
+                {course.description ? (
+                  <p className="max-w-3xl text-lg text-muted-foreground">{course.description}</p>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Badge variant="outline" className="rounded-full px-3 py-1">{course.chapters?.length || 0} chapters</Badge>
+                <Badge variant="outline" className="rounded-full px-3 py-1">{totalLessons} lessons</Badge>
+                {totalFlashcards > 0 ? <Badge className="rounded-full px-3 py-1">{totalFlashcards} flashcards</Badge> : null}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  size="lg"
+                  className="rounded-full px-6"
+                  onClick={handleStudyFlashcards}
+                  disabled={initFlashcards.isPending}
+                >
+                  {initFlashcards.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
+                  Study this course
+                </Button>
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="lg"
+                  className="rounded-full px-6"
                   onClick={() => generateAllImages.mutate({ courseId, skipExisting: true })}
                   disabled={generateAllImages.isPending}
                 >
-                  {generateAllImages.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Generating Images...
-                    </>
-                  ) : (
-                    <>
-                      <Image className="w-4 h-4 mr-2" />
-                      Generate All Images
-                    </>
-                  )}
+                  {generateAllImages.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Image className="mr-2 h-4 w-4" />}
+                  Generate visuals
                 </Button>
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="lg"
+                  className="rounded-full px-6"
                   onClick={handleExportPdf}
                   disabled={isExportingPdf}
                 >
-                  {isExportingPdf ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Exporting...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-4 h-4 mr-2" />
-                      Export PDF
-                    </>
-                  )}
+                  {isExportingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  Export PDF
                 </Button>
+              </div>
+            </div>
+
+            <div className="rounded-[32px] border border-border/70 bg-background/90 p-6">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-muted/35 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Lesson progress</div>
+                  <div className="mt-2 text-3xl font-semibold">{courseProgress}%</div>
+                  <div className="mt-1 text-sm text-muted-foreground">{completedLessons} of {totalLessons} completed</div>
+                </div>
+                <div className="rounded-2xl bg-muted/35 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Due reviews</div>
+                  <div className="mt-2 text-3xl font-semibold">{dueForCourse}</div>
+                  <div className="mt-1 text-sm text-muted-foreground">Cards waiting now</div>
+                </div>
+                <div className="rounded-2xl bg-muted/35 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Review coverage</div>
+                  <div className="mt-2 text-3xl font-semibold">{reviewCoverage}%</div>
+                  <div className="mt-1 text-sm text-muted-foreground">{courseFlashcards.length} reviews initialized</div>
+                </div>
+                <div className="rounded-2xl bg-muted/35 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Mastered cards</div>
+                  <div className="mt-2 text-3xl font-semibold">{masteredForCourse}</div>
+                  <div className="mt-1 text-sm text-muted-foreground">Stable recall in this course</div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Course Content */}
-      <main className="container py-16">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
-            <div className="space-y-4">
-              <h2 className="text-3xl font-bold">Course Content</h2>
-              <div className="border-t-2 border-current w-16" />
-            </div>
-            <div className="space-y-6">
-              {course.chapters?.map((chapter: any, chapterIdx: number) => (
-                <Card key={chapter.id} className="border-2 border-current">
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-start gap-4">
-                      <div className="w-8 h-8 bg-foreground text-background flex items-center justify-center font-bold text-sm flex-shrink-0">
-                        {chapterIdx + 1}
-                      </div>
-                      <div className="space-y-2 flex-1">
-                        <h3 className="text-xl font-bold">{chapter.title}</h3>
-                        {chapter.description && (
-                          <p className="text-sm text-muted-foreground">{chapter.description}</p>
-                        )}
-                      </div>
-                    </div>
-                    {chapter.lessons && (
-                      <div className="ml-12 space-y-2">
-                        {chapter.lessons.map((lesson: any) => (
-                          <div
-                            key={lesson.id}
-                            className="flex items-center gap-3 p-3 hover:bg-accent/50 cursor-pointer rounded transition-colors"
-                            onClick={() => navigate(`/lesson/${lesson.id}`)}
-                          >
-                            <div className="w-2 h-2 bg-current rounded-full flex-shrink-0" />
-                            <span className="text-sm font-medium">{lesson.title}</span>
-                            {lesson.completed && (
-                              <span className="text-xs text-green-600 font-bold ml-auto">
-                                Completed
-                              </span>
-                            )}
+      <main className="container py-10">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="space-y-8">
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-semibold">Course content</h2>
+                  <p className="text-sm text-muted-foreground">Open any lesson directly or scan chapter completion first.</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {course.chapters?.map((chapter: any, chapterIdx: number) => {
+                  const chapterLessons = chapter.lessons || [];
+                  const chapterCompleted = chapterLessons.filter((lesson: any) => lesson.completed).length;
+                  const chapterProgress = chapterLessons.length ? Math.round((chapterCompleted / chapterLessons.length) * 100) : 0;
+                  const chapterFlashcards = chapterLessons.reduce((acc: number, lesson: any) => acc + (lesson.flashcardCount || 0), 0);
+
+                  return (
+                    <section key={chapter.id} className="space-y-4 border-b border-border/60 pb-6 last:border-b-0">
+                      <div className="grid gap-4 lg:grid-cols-[auto_minmax(0,1fr)_240px]">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-foreground text-background font-semibold">
+                          {chapterIdx + 1}
+                        </div>
+                        <div className="space-y-2">
+                          <h3 className="text-xl font-semibold">{chapter.title}</h3>
+                          {chapter.description ? <p className="text-sm text-muted-foreground">{chapter.description}</p> : null}
+                          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                            <span>{chapterLessons.length} lessons</span>
+                            <span>·</span>
+                            <span>{chapterFlashcards} flashcards</span>
                           </div>
+                        </div>
+                        <div className="rounded-2xl bg-muted/35 p-4">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Chapter progress</span>
+                            <span className="font-medium">{chapterProgress}%</span>
+                          </div>
+                          <div className="mt-3">
+                            <Progress value={chapterProgress} />
+                          </div>
+                          <div className="mt-2 text-sm text-muted-foreground">{chapterCompleted} of {chapterLessons.length} lessons complete</div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 pl-0 lg:pl-14">
+                        {chapterLessons.map((lesson: any, lessonIdx: number) => (
+                          <button
+                            key={lesson.id}
+                            type="button"
+                            onClick={() => navigate(`/lesson/${lesson.id}`)}
+                            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border/70 px-4 py-3 text-left transition-colors hover:bg-muted/35"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-muted-foreground">{lessonIdx + 1}.</span>
+                                <span className="truncate font-medium">{lesson.title}</span>
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                <span>{lesson.flashcardCount || 0} flashcards</span>
+                                {lesson.lessonType ? <span>· {lesson.lessonType}</span> : null}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {lesson.completed ? (
+                                <Badge variant="secondary" className="rounded-full gap-1">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Done
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="rounded-full">Open</Badge>
+                              )}
+                            </div>
+                          </button>
                         ))}
                       </div>
-                    )}
-                  </div>
-                </Card>
-              ))}
-            </div>
+                    </section>
+                  );
+                })}
+              </div>
+            </section>
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            <Card className="border-2 border-current p-6 space-y-4">
-              <h3 className="font-bold text-lg">Course Progress</h3>
-              <div className="border-t-2 border-current w-8" />
-              <p className="text-sm text-muted-foreground">
-                Track your progress through each chapter and lesson.
-              </p>
+          <div className="space-y-5 lg:sticky lg:top-24 lg:self-start">
+            <Card className="border-border/70 p-5">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  Next actions
+                </div>
+                <div className="space-y-3">
+                  <Button
+                    className="w-full justify-start rounded-2xl"
+                    onClick={handleStudyFlashcards}
+                    disabled={initFlashcards.isPending}
+                  >
+                    <Brain className="mr-2 h-4 w-4" />
+                    Review course flashcards
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start rounded-2xl"
+                    onClick={() => navigate("/knowledge-graph")}
+                  >
+                    <Layers className="mr-2 h-4 w-4" />
+                    Open knowledge graph
+                  </Button>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="border-border/70 p-5">
+              <div className="space-y-4">
+                <div className="text-sm font-semibold">Study summary</div>
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Lesson completion</div>
+                    <div className="mt-1 text-2xl font-semibold">{courseProgress}%</div>
+                    <div className="mt-2"><Progress value={courseProgress} /></div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Flashcard readiness</div>
+                    <div className="mt-1 text-2xl font-semibold">{reviewCoverage}%</div>
+                    <div className="mt-2"><Progress value={reviewCoverage} /></div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="border-border/70 p-5">
+              <div className="space-y-3">
+                <div className="text-sm font-semibold">Review status</div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Cards due now</span>
+                    <span className="font-medium">{dueForCourse}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Cards mastered</span>
+                    <span className="font-medium">{masteredForCourse}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Cards in rotation</span>
+                    <span className="font-medium">{courseFlashcards.length - masteredForCourse}</span>
+                  </div>
+                </div>
+              </div>
             </Card>
           </div>
         </div>
