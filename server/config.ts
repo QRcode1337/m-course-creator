@@ -8,12 +8,15 @@ const defaultDbPath = process.env.VERCEL ? "/tmp/app.db" : "./data/app.db";
 const databasePath = process.env.DATABASE_PATH || defaultDbPath;
 const resolvedDbPath = path.resolve(process.cwd(), databasePath);
 fs.mkdirSync(path.dirname(resolvedDbPath), { recursive: true });
+const uploadsDir = path.resolve(path.dirname(resolvedDbPath), "uploads");
+fs.mkdirSync(uploadsDir, { recursive: true });
 
 const corsOrigin = process.env.CORS_ORIGIN?.trim();
 
 export const config = {
   port: Number(process.env.PORT || 3001),
   databasePath: resolvedDbPath,
+  uploadsDir,
   corsOrigin: corsOrigin && corsOrigin.length > 0 ? corsOrigin : undefined,
   defaultAiProvider: process.env.AI_PROVIDER === "ollama" ? "ollama" : "openai",
   openAiApiKey: process.env.OPENAI_API_KEY,

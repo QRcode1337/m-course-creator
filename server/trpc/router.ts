@@ -7,6 +7,8 @@ import { flashcardsRouter } from "./routers/flashcards";
 import { settingsRouter } from "./routers/settings";
 import { knowledgeGraphRouter } from "./routers/knowledge-graph";
 import { mediaRouter } from "./routers/media";
+import { documentsRouter } from "./routers/documents";
+import { notesRouter } from "./routers/notes";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -17,6 +19,8 @@ export const appRouter = createTRPCRouter({
   settings: settingsRouter,
   knowledgeGraph: knowledgeGraphRouter,
   media: mediaRouter,
+  documents: documentsRouter,
+  notes: notesRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -100,6 +100,32 @@ export function ensureSchema(sqlite: Database.Database) {
       FOREIGN KEY(lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS imported_documents (
+      id TEXT PRIMARY KEY,
+      file_name TEXT NOT NULL,
+      file_type TEXT NOT NULL,
+      stored_path TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'ready',
+      extracted_content TEXT,
+      word_count INTEGER,
+      title TEXT,
+      error_message TEXT,
+      course_id TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS user_notes (
+      id TEXT PRIMARY KEY,
+      lesson_id TEXT NOT NULL UNIQUE,
+      content TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY(lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_chapters_course_id ON chapters(course_id);
     CREATE INDEX IF NOT EXISTS idx_lessons_chapter_id ON lessons(chapter_id);
     CREATE INDEX IF NOT EXISTS idx_glossary_lesson_id ON glossary_terms(lesson_id);
@@ -108,6 +134,9 @@ export function ensureSchema(sqlite: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_reviews_term_id ON flashcard_reviews(glossary_term_id);
     CREATE INDEX IF NOT EXISTS idx_reviews_next_review ON flashcard_reviews(next_review_date);
     CREATE INDEX IF NOT EXISTS idx_illustrations_lesson_id ON illustrations(lesson_id);
+    CREATE INDEX IF NOT EXISTS idx_imported_documents_course_id ON imported_documents(course_id);
+    CREATE INDEX IF NOT EXISTS idx_imported_documents_created_at ON imported_documents(created_at);
+    CREATE INDEX IF NOT EXISTS idx_user_notes_lesson_id ON user_notes(lesson_id);
   `);
 
   if (!hasColumn(sqlite, "settings", "ollama_base_url")) {

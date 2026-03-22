@@ -50,6 +50,60 @@ export const coursesRouter = createTRPCRouter({
       return { architecture };
     }),
 
+  preview: publicProcedure
+    .input(
+      z.object({
+        topic: z.string().min(2),
+        approach: z.string().optional(),
+        familiarityLevel: z.string().optional(),
+        courseComplexity: z.enum(["generic", "advanced"]).optional(),
+        assessmentAnswers: z
+          .array(z.object({ question: z.string().min(1), answer: z.string().min(1) }))
+          .optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const settings = await getGlobalSettings(ctx.db);
+      const provider = createAIProvider(settings);
+      const requirements = (input.assessmentAnswers || [])
+        .map((a) => `${a.question}: ${a.answer}`)
+        .join("\n");
+
+      const architecture = await provider.generateCourseArchitecture({
+        topic: input.topic,
+        approach: input.approach,
+        familiarityLevel: input.familiarityLevel,
+        requirements,
+        courseComplexity: input.courseComplexity ?? "generic",
+      });
+
+      const preview = await provider.generateCourseFromArchitecture({
+        topic: input.topic,
+        approach: input.approach,
+        familiarityLevel: input.familiarityLevel,
+        requirements,
+        courseComplexity: input.courseComplexity ?? architecture.courseComplexity ?? "generic",
+        architecture,
+      });
+
+      const relatedTopics = Array.from(
+        new Map(
+          preview.chapters
+            .flatMap((chapter) => chapter.lessons)
+            .flatMap((lesson) => lesson.relatedTopics)
+            .map((topic) => [topic.title.toLowerCase(), topic]),
+        ).values(),
+      ).slice(0, 8);
+
+      return {
+        architecture,
+        preview: {
+          ...preview,
+          relatedTopics,
+        },
+      };
+    }),
+
   generate: publicProcedure
     .input(
       z.object({

@@ -5,7 +5,7 @@ import { useAuth } from "../hooks/useAuth";
 import { toast } from "sonner";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Loader2, Sparkles, Brain, Layers, Library, Settings } from "lucide-react";
+import { Loader2, Sparkles, Brain, Layers, Library, Settings, Upload } from "lucide-react";
 import { NodeGraphBackground } from "../components/NodeGraphBackground";
 import { CourseSetupWizard } from "../components/CourseSetupWizard";
 
@@ -147,6 +147,10 @@ export default function Home() {
               <Button variant="ghost" size="sm" onClick={() => navigate("/library")} className="gap-2">
                 <Library className="w-4 h-4" />
                 <span className="hidden sm:inline">My Library</span>
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => navigate("/import")} className="gap-2">
+                <Upload className="w-4 h-4" />
+                <span className="hidden sm:inline">Import</span>
               </Button>
               <Button variant="ghost" size="sm" onClick={() => navigate("/settings")}>
                 <Settings className="w-4 h-4" />

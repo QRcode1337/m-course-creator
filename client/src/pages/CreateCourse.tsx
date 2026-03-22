@@ -65,8 +65,28 @@ export default function CreateCourse() {
       toast.error(error.message || "Failed to create course");
     },
   });
+  const previewCourse = trpc.courses.preview.useMutation({
+    onSuccess: (data) => {
+      sessionStorage.setItem("coursePreview", JSON.stringify(data.preview));
+      sessionStorage.setItem("coursePreviewTopic", topic.trim());
+      sessionStorage.setItem(
+        "coursePreviewConfig",
+        JSON.stringify({
+          approach,
+          courseLength,
+          lessonsPerChapter,
+          contentDepth,
+        }),
+      );
+      sessionStorage.setItem("coursePreviewArchitecture", JSON.stringify(data.architecture));
+      navigate("/preview");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to generate preview");
+    },
+  });
 
-  const isPending = createCourse.isPending;
+  const isPending = createCourse.isPending || previewCourse.isPending;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +97,24 @@ export default function CreateCourse() {
     }
 
     createCourse.mutate({
+      topic: trimmedTopic,
+      approach,
+      familiarityLevel: contentDepth,
+      assessmentAnswers: [
+        { question: "Preferred course length", answer: courseLength },
+        { question: "Lessons per chapter preference", answer: lessonsPerChapter },
+      ],
+    });
+  };
+
+  const handlePreview = () => {
+    const trimmedTopic = topic.trim();
+    if (!trimmedTopic) {
+      toast.error("Please enter a topic");
+      return;
+    }
+
+    previewCourse.mutate({
       topic: trimmedTopic,
       approach,
       familiarityLevel: contentDepth,
@@ -244,28 +282,50 @@ export default function CreateCourse() {
               </CardContent>
             </Card>
 
-            <Button
-              type="submit"
-              size="lg"
-              className="w-full gap-2"
-              disabled={isPending || !topic.trim()}
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Generating Course...
-                </>
-              ) : (
-                <>
-                  <Zap className="w-5 h-5" />
-                  Generate Course
-                </>
-              )}
-            </Button>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Button
+                type="button"
+                size="lg"
+                variant="outline"
+                className="w-full gap-2"
+                disabled={isPending || !topic.trim()}
+                onClick={handlePreview}
+              >
+                {previewCourse.isPending ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Building Preview...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    Preview Course
+                  </>
+                )}
+              </Button>
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full gap-2"
+                disabled={isPending || !topic.trim()}
+              >
+                {createCourse.isPending ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Generating Course...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-5 h-5" />
+                    Generate Course
+                  </>
+                )}
+              </Button>
+            </div>
 
             {isPending && (
               <p className="text-center text-sm text-muted-foreground mt-4">
-                This may take a minute. AI is creating your personalized course structure...
+                This may take a minute. AI is building your course structure...
               </p>
             )}
           </form>

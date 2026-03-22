@@ -1,7 +1,7 @@
 import * as pdfParse from "pdf-parse";
 const pdf = (pdfParse as any).default || pdfParse;
 import mammoth from "mammoth";
-import axios from "axios";
+import fs from "node:fs/promises";
 
 export interface ProcessedDocument {
   content: string;
@@ -58,30 +58,25 @@ function extractTextContent(buffer: Buffer): ProcessedDocument {
 }
 
 /**
- * Download file from URL and return as buffer
+ * Read file from local disk and return as buffer
  */
-async function downloadFile(url: string): Promise<Buffer> {
+async function readFileBuffer(filePath: string): Promise<Buffer> {
   try {
-    const response = await axios.get(url, {
-      responseType: "arraybuffer",
-      timeout: 60000, // 60 second timeout
-    });
-    return Buffer.from(response.data);
+    return await fs.readFile(filePath);
   } catch (error) {
-    console.error("File download error:", error);
-    throw new Error("Failed to download file");
+    console.error("File read error:", error);
+    throw new Error("Failed to read uploaded file");
   }
 }
 
 /**
- * Main function to process a document from URL
+ * Main function to process a document from local disk
  */
 export async function processDocument(
-  fileUrl: string,
+  filePath: string,
   fileType: "pdf" | "docx" | "txt" | "md"
 ): Promise<ProcessedDocument> {
-  // Download the file
-  const buffer = await downloadFile(fileUrl);
+  const buffer = await readFileBuffer(filePath);
 
   // Process based on file type
   switch (fileType) {

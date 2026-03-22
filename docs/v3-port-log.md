@@ -41,6 +41,27 @@ Date: 2026-03-22
 - `client/src/pages/CourseView.tsx`
 - Notes: implemented directly in trunk instead of importing donor Puppeteer export.
 
+6. Preview flow
+- `server/trpc/routers/courses.ts` (`courses.preview`)
+- `client/src/pages/CreateCourse.tsx`
+- `client/src/pages/PreviewCourse.tsx`
+- `client/src/App.tsx` (`/preview` route)
+- Notes: preview is trunk-native and reuses the generated architecture to create the saved course.
+
+7. Richer lesson workspace
+- `client/src/components/AIChatBox.tsx`
+- `client/src/pages/LessonView.tsx`
+- `server/trpc/routers/notes.ts`
+- Notes: upgraded lesson chat UI, added autosaved lesson notes, and added previous/next lesson navigation.
+
+8. Document ingestion
+- `server/app.ts` (`/api/documents/upload`)
+- `server/trpc/routers/documents.ts`
+- `server/documentProcessor.ts`
+- `client/src/pages/ImportDocument.tsx`
+- `client/src/App.tsx` (`/import` route)
+- Notes: implemented as a trunk-native local upload + extraction flow on the active SQLite stack.
+
 ## Rejected / Excluded (Manus-coupled or not boundary-clean)
 
 1. Manus Vite runtime plugin
@@ -64,14 +85,12 @@ Date: 2026-03-22
 - `server/storage.ts`
 - Reason: not aligned with trunk router/factory boundaries; excluded from server TS build.
 
-5. Donor document ingestion UI path (for now)
-- `client/src/pages/ImportDocument.tsx` remains unported to active routing.
-- Reason: depends on backend document/upload routes not present in trunk boundary.
+5. Donor component showcase and legacy helper surfaces
+- `client/src/pages/ComponentShowcase.tsx`
+- some excluded donor-only UI helpers
+- Reason: demo/reference surfaces, not product-critical runtime features.
 
 ## Next Candidate Ports (One-at-a-time)
 
-1. Richer lesson chat UX
-- Improve `LessonView` chat UI while reusing existing `trpc.lessons.chat` backend contract.
-
-2. Document ingestion
-- Define trunk-native router contract first (`documents.*`), then adapt donor UI.
+1. Final donor parity cleanup
+- Remove or adapt remaining excluded donor-only files that are no longer needed.

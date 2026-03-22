@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "../utils/trpc";
 import { useAuth } from "../hooks/useAuth";
@@ -7,6 +7,7 @@ import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Checkbox } from "../components/ui/checkbox";
 import { Skeleton } from "../components/ui/skeleton";
+import { Textarea } from "../components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +18,9 @@ import { LessonContent } from "../components/LessonContent";
 import { Quiz } from "../components/Quiz";
 import { MediaGenerationDialog } from "../components/MediaGenerationDialog";
 import { RelatedTopics } from "../components/RelatedTopics";
-import { Loader2, ArrowLeft, Sparkles, Image, Palette } from "lucide-react";
+import { AIChatBox, type Message } from "../components/AIChatBox";
+import { toast } from "sonner";
+import { Loader2, ArrowLeft, ArrowRight, Sparkles, Image, Palette, Lightbulb, BookOpen, HelpCircle, Zap, NotebookPen, Save } from "lucide-react";
 
 const STYLE_THEMES: Record<string, string> = {};
 
@@ -28,13 +31,22 @@ export default function LessonView() {
   const lessonId = params.id;
   const { styleTheme, setStyleTheme } = useStyleTheme();
   const [showMediaDialog, setShowMediaDialog] = useState(false);
-  const [chatMessages, setChatMessages] = useState<Array<{ role: string; content: string }>>([]);
-  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  const [notes, setNotes] = useState("");
+  const [notesDirty, setNotesDirty] = useState(false);
 
   const utils = trpc.useUtils();
   const { data: lesson, isLoading } = trpc.lessons.getById.useQuery(
     { lessonId },
     { enabled: !!user && !!lessonId }
+  );
+  const { data: course } = trpc.courses.getById.useQuery(
+    { courseId: lesson?.course.id ?? "" },
+    { enabled: !!lesson?.course.id },
+  );
+  const { data: note } = trpc.notes.getByLessonId.useQuery(
+    { lessonId },
+    { enabled: !!lessonId },
   );
 
   const toggleComplete = trpc.lessons.toggleComplete.useMutation({
@@ -51,28 +63,52 @@ export default function LessonView() {
       setShowMediaDialog(false);
     },
   });
+  const saveNote = trpc.notes.save.useMutation({
+    onSuccess: async () => {
+      setNotesDirty(false);
+      await utils.notes.getByLessonId.invalidate({ lessonId });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to save notes.");
+    },
+  });
+
+  useEffect(() => {
+    if (note && !notesDirty) {
+      setNotes(note.content);
+    }
+  }, [note, notesDirty]);
+
+  useEffect(() => {
+    if (!lessonId || !notesDirty) return;
+    const timer = window.setTimeout(() => {
+      saveNote.mutate({ lessonId, content: notes });
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [lessonId, notes, notesDirty]);
 
   const handleToggleComplete = (checked: boolean) => {
     toggleComplete.mutate({ lessonId, completed: checked });
   };
 
   const handleSendChat = async (message: string) => {
-    const userMsg = { role: "user", content: message };
+    const userMsg: Message = { role: "user", content: message };
     setChatMessages((prev) => [...prev, userMsg]);
-    setChatInput("");
     try {
       const response = await chat.mutateAsync({
         lessonId,
         message,
         conversationHistory: chatMessages,
       });
-      const assistantMsg = {
+      const assistantMsg: Message = {
         role: "assistant",
         content: typeof response.message === "string" ? response.message : "",
       };
       setChatMessages((prev) => [...prev, assistantMsg]);
     } catch (error) {
       console.error("Chat error:", error);
+      toast.error("Failed to get AI response for this lesson.");
     }
   };
 
@@ -108,6 +144,22 @@ export default function LessonView() {
   }
 
   if (!lesson) return null;
+
+  const suggestedPrompts = [
+    `Explain "${lesson.title}" in simpler language.`,
+    `Give me three practical examples from "${lesson.title}".`,
+    `Quiz me on the main ideas from this lesson.`,
+    `What should I remember most from this lesson?`,
+  ];
+  const allLessons = useMemo(() => course?.chapters.flatMap((chapter: any) => chapter.lessons || []) || [], [course]);
+  const currentLessonIndex = useMemo(
+    () => allLessons.findIndex((entry: any) => entry.id === lessonId),
+    [allLessons, lessonId],
+  );
+  const previousLesson = currentLessonIndex > 0 ? allLessons[currentLessonIndex - 1] : null;
+  const nextLesson = currentLessonIndex >= 0 && currentLessonIndex < allLessons.length - 1
+    ? allLessons[currentLessonIndex + 1]
+    : null;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -216,49 +268,100 @@ export default function LessonView() {
 
             {/* Quiz Section */}
             <Quiz lessonId={lessonId} />
+
+            <div className="flex items-center justify-between border-t pt-6">
+              <Button
+                variant="outline"
+                disabled={!previousLesson}
+                onClick={() => previousLesson && navigate(`/lesson/${previousLesson.id}`)}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Previous Lesson
+              </Button>
+              <Button
+                variant="outline"
+                disabled={!nextLesson}
+                onClick={() => nextLesson && navigate(`/lesson/${nextLesson.id}`)}
+              >
+                Next Lesson
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
             {/* AI Chat */}
             <Card className="border-2 border-current p-6 space-y-4">
-              <h3 className="font-bold text-lg">Ask AI about this lesson</h3>
-              <div className="space-y-3 max-h-60 overflow-y-auto">
-                {chatMessages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={`p-3 rounded text-sm ${
-                      msg.role === "user" ? "bg-accent ml-4" : "bg-muted mr-4"
-                    }`}
-                  >
-                    {msg.content}
-                  </div>
-                ))}
+              <div className="space-y-2">
+                <h3 className="font-bold text-lg">Ask AI about this lesson</h3>
+                <p className="text-sm text-muted-foreground">
+                  Use the lesson context for explanations, examples, and quick self-checks.
+                </p>
               </div>
-              <div className="flex gap-2">
-                <input
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && chatInput.trim()) {
-                      handleSendChat(chatInput);
-                    }
-                  }}
-                  placeholder="Ask a question..."
-                  className="flex-1 px-3 py-2 border rounded text-sm"
-                />
-                <Button
-                  size="sm"
-                  onClick={() => chatInput.trim() && handleSendChat(chatInput)}
-                  disabled={chat.isPending}
-                >
-                  Send
-                </Button>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: "Explain simply", icon: Lightbulb, prompt: suggestedPrompts[0] },
+                  { label: "Give examples", icon: Zap, prompt: suggestedPrompts[1] },
+                  { label: "Quiz me", icon: HelpCircle, prompt: suggestedPrompts[2] },
+                  { label: "Summarize", icon: BookOpen, prompt: suggestedPrompts[3] },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Button
+                      key={item.label}
+                      variant="outline"
+                      size="sm"
+                      className="justify-start gap-2"
+                      disabled={chat.isPending}
+                      onClick={() => handleSendChat(item.prompt)}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {item.label}
+                    </Button>
+                  );
+                })}
               </div>
+              <AIChatBox
+                messages={chatMessages}
+                onSendMessage={handleSendChat}
+                isLoading={chat.isPending}
+                placeholder="Ask a question about this lesson..."
+                height={420}
+                emptyStateMessage="Start a lesson-specific conversation."
+                suggestedPrompts={suggestedPrompts}
+              />
             </Card>
 
             {/* Related Topics */}
             {lesson.relatedTopics && <RelatedTopics topics={lesson.relatedTopics} />}
+
+            <Card className="border-2 border-current p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <NotebookPen className="h-4 w-4" />
+                    Lesson Notes
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Notes are saved automatically for this lesson.
+                  </p>
+                </div>
+                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Save className="h-3 w-3" />
+                  {saveNote.isPending ? "Saving..." : notesDirty ? "Unsaved" : "Saved"}
+                </div>
+              </div>
+              <Textarea
+                value={notes}
+                onChange={(event) => {
+                  setNotes(event.target.value);
+                  setNotesDirty(true);
+                }}
+                placeholder="Capture key takeaways, examples, questions, or next steps."
+                className="min-h-40"
+              />
+            </Card>
 
             {/* Glossary */}
             {lesson.glossaryTerms && lesson.glossaryTerms.length > 0 && (

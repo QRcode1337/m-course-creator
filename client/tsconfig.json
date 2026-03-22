@@ -17,7 +17,6 @@
   "exclude": [
     "src/_core/**/*",
     "src/lib/trpc.ts",
-    "src/components/AIChatBox.tsx",
     "src/components/DashboardLayout.tsx",
     "src/components/DashboardLayoutSkeleton.tsx",
     "src/components/Map.tsx",
@@ -52,8 +51,6 @@
     "src/components/ui/toggle.tsx",
     "src/pages/ComponentShowcase.tsx",
     "src/pages/Flashcards.tsx",
-    "src/pages/ImportDocument.tsx",
-    "src/pages/PreviewCourse.tsx",
     "src/components/Header.tsx"
   ]
 }

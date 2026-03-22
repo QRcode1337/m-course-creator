@@ -1,30 +1,24 @@
-import { useAuth } from "@/_core/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
-import Header from "@/components/Header";
-import { getLoginUrl } from "@/const";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { Streamdown } from "streamdown";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
   ChevronRight,
   Download,
-  GraduationCap,
-  Key,
   Layers,
-  Lock,
   MessageCircle,
   RotateCcw,
-  Send,
   Sparkles,
+  Zap,
 } from "lucide-react";
+import { trpc } from "../utils/trpc";
+import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../components/ui/accordion";
 
 interface KeyTerm {
   term: string;
@@ -34,7 +28,7 @@ interface KeyTerm {
 interface PreviewLesson {
   title: string;
   content: string;
-  keyTerms: KeyTerm[];
+  glossaryTerms: KeyTerm[];
 }
 
 interface PreviewChapter {
@@ -43,79 +37,119 @@ interface PreviewChapter {
   lessons: PreviewLesson[];
 }
 
+interface PreviewTopic {
+  title: string;
+  description?: string;
+}
+
 interface PreviewData {
   title: string;
   description: string;
   chapters: PreviewChapter[];
-  relatedTopics: { name: string; relationship: string; description: string }[];
+  relatedTopics?: PreviewTopic[];
+}
+
+interface PreviewConfig {
+  approach: "balanced" | "rigorous" | "easy";
+  courseLength: "short" | "medium" | "comprehensive";
+  lessonsPerChapter: "few" | "moderate" | "many";
+  contentDepth: "introductory" | "intermediate" | "advanced";
 }
 
 export default function PreviewCourse() {
-  const { user } = useAuth();
   const [, navigate] = useLocation();
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [previewTopic, setPreviewTopic] = useState("");
-  const [selectedLessonIndex, setSelectedLessonIndex] = useState<{ chapter: number; lesson: number }>({ chapter: 0, lesson: 0 });
-  const [showFlashcards, setShowFlashcards] = useState(false);
+  const [previewConfig, setPreviewConfig] = useState<PreviewConfig | null>(null);
+  const [previewArchitecture, setPreviewArchitecture] = useState<unknown>(null);
+  const [selectedLessonIndex, setSelectedLessonIndex] = useState({ chapter: 0, lesson: 0 });
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [cardFlipped, setCardFlipped] = useState(false);
 
-  // Load preview data from sessionStorage
+  const createCourse = trpc.courses.generate.useMutation({
+    onSuccess: (data) => {
+      sessionStorage.removeItem("coursePreview");
+      sessionStorage.removeItem("coursePreviewTopic");
+      sessionStorage.removeItem("coursePreviewConfig");
+      sessionStorage.removeItem("coursePreviewArchitecture");
+      navigate(`/course/${data.courseId}`);
+    },
+  });
+
   useEffect(() => {
     const stored = sessionStorage.getItem("coursePreview");
     const storedTopic = sessionStorage.getItem("coursePreviewTopic");
-    if (stored) {
-      try {
-        setPreviewData(JSON.parse(stored));
-        setPreviewTopic(storedTopic || "");
-      } catch {
-        navigate("/create");
-      }
-    } else {
+    const storedConfig = sessionStorage.getItem("coursePreviewConfig");
+    const storedArchitecture = sessionStorage.getItem("coursePreviewArchitecture");
+
+    if (!stored) {
+      navigate("/create");
+      return;
+    }
+
+    try {
+      setPreviewData(JSON.parse(stored));
+      setPreviewTopic(storedTopic || "");
+      setPreviewConfig(storedConfig ? JSON.parse(storedConfig) : null);
+      setPreviewArchitecture(storedArchitecture ? JSON.parse(storedArchitecture) : null);
+    } catch {
       navigate("/create");
     }
   }, [navigate]);
 
-  // Get the currently selected lesson
   const selectedLesson = useMemo(() => {
     if (!previewData) return null;
     const chapter = previewData.chapters[selectedLessonIndex.chapter];
-    if (!chapter) return null;
-    return chapter.lessons[selectedLessonIndex.lesson] || null;
+    return chapter?.lessons[selectedLessonIndex.lesson] ?? null;
   }, [previewData, selectedLessonIndex]);
 
-  // Get all key terms for flashcard preview
   const allKeyTerms = useMemo(() => {
     if (!previewData) return [];
-    return previewData.chapters.flatMap(ch =>
-      ch.lessons.flatMap(l => l.keyTerms)
+    return previewData.chapters.flatMap((chapter) =>
+      chapter.lessons.flatMap((lesson) => lesson.glossaryTerms),
     );
   }, [previewData]);
 
-  // Total stats
   const totalLessons = useMemo(() => {
     if (!previewData) return 0;
-    return previewData.chapters.reduce((acc, ch) => acc + ch.lessons.length, 0);
+    return previewData.chapters.reduce((count, chapter) => count + chapter.lessons.length, 0);
   }, [previewData]);
 
   const handleFlipCard = useCallback(() => {
-    setCardFlipped(prev => !prev);
+    setCardFlipped((prev) => !prev);
   }, []);
 
   const handleNextCard = useCallback(() => {
     setCardFlipped(false);
-    setCurrentCardIndex(prev => (prev + 1) % allKeyTerms.length);
+    setCurrentCardIndex((prev) => (allKeyTerms.length ? (prev + 1) % allKeyTerms.length : 0));
   }, [allKeyTerms.length]);
 
   const handlePrevCard = useCallback(() => {
     setCardFlipped(false);
-    setCurrentCardIndex(prev => (prev - 1 + allKeyTerms.length) % allKeyTerms.length);
+    setCurrentCardIndex((prev) => (allKeyTerms.length ? (prev - 1 + allKeyTerms.length) % allKeyTerms.length : 0));
   }, [allKeyTerms.length]);
+
+  const handleCreateCourse = () => {
+    if (!previewTopic || !previewConfig) {
+      navigate("/create");
+      return;
+    }
+
+    createCourse.mutate({
+      topic: previewTopic,
+      approach: previewConfig.approach,
+      familiarityLevel: previewConfig.contentDepth,
+      architecture: previewArchitecture ?? undefined,
+      assessmentAnswers: [
+        { question: "Preferred course length", answer: previewConfig.courseLength },
+        { question: "Lessons per chapter preference", answer: previewConfig.lessonsPerChapter },
+      ],
+    });
+  };
 
   if (!previewData) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <div className="container py-24 text-center">
           <p className="text-muted-foreground">Loading preview...</p>
         </div>
@@ -125,10 +159,7 @@ export default function PreviewCourse() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-
       <main className="container py-8">
-        {/* Back button */}
         <Link href="/create">
           <Button variant="ghost" size="sm" className="mb-6 gap-2">
             <ArrowLeft className="w-4 h-4" />
@@ -136,55 +167,44 @@ export default function PreviewCourse() {
           </Button>
         </Link>
 
-        {/* Preview banner */}
-        <div className="mb-6 p-4 rounded-lg border border-primary/20 bg-primary/5">
+        <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 p-4">
           <div className="flex items-start gap-3">
-            <Sparkles className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+            <Sparkles className="mt-0.5 w-5 h-5 shrink-0 text-primary" />
             <div>
-              <p className="font-medium text-sm">
-                This is a free preview of your generated course on "{previewTopic}"
+              <p className="text-sm font-medium">
+                Preview for "{previewTopic}"
               </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Sign in to save this course, unlock full AI chat, generate flashcards, and export to PDF.
-                Chat history is not saved in preview mode.
+              <p className="mt-1 text-sm text-muted-foreground">
+                Review the outline, sample lesson content, key terms, and study surfaces before saving the full course.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          {/* Main content */}
-          <div className="xl:col-span-2 space-y-6">
-            {/* Course header */}
+        <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
+          <div className="space-y-6 xl:col-span-2">
             <Card>
               <CardHeader>
-                <div className="flex items-center gap-2 mb-2">
+                <div className="mb-2 flex items-center gap-2">
                   <Badge variant="secondary">Preview</Badge>
-                  <Badge variant="outline">Introductory</Badge>
+                  {previewConfig && <Badge variant="outline">{previewConfig.contentDepth}</Badge>}
                 </div>
                 <CardTitle className="text-2xl">{previewData.title}</CardTitle>
-                <CardDescription className="mt-2">
-                  {previewData.description}
-                </CardDescription>
+                <CardDescription className="mt-2">{previewData.description}</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                   <span>{previewData.chapters.length} chapters</span>
-                  <span className="text-border">|</span>
                   <span>{totalLessons} lessons</span>
-                  <span className="text-border">|</span>
                   <span>{allKeyTerms.length} key terms</span>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Course outline */}
             <Card>
               <CardHeader>
                 <CardTitle>Course Content</CardTitle>
-                <CardDescription>
-                  Click any lesson to preview its content
-                </CardDescription>
+                <CardDescription>Choose a lesson to inspect the generated material.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Accordion type="multiple" defaultValue={["chapter-0"]} className="w-full">
@@ -192,7 +212,7 @@ export default function PreviewCourse() {
                     <AccordionItem key={chapterIndex} value={`chapter-${chapterIndex}`}>
                       <AccordionTrigger className="hover:no-underline">
                         <div className="flex items-center gap-3 text-left">
-                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-sm font-medium text-primary">
                             {chapterIndex + 1}
                           </div>
                           <div>
@@ -204,34 +224,30 @@ export default function PreviewCourse() {
                         </div>
                       </AccordionTrigger>
                       <AccordionContent>
-                        <div className="pl-11 space-y-2">
+                        <div className="space-y-2 pl-11">
                           {chapter.description && (
-                            <p className="text-sm text-muted-foreground mb-4">
-                              {chapter.description}
-                            </p>
+                            <p className="mb-4 text-sm text-muted-foreground">{chapter.description}</p>
                           )}
                           {chapter.lessons.map((lesson, lessonIndex) => {
                             const isSelected =
-                              selectedLessonIndex.chapter === chapterIndex &&
-                              selectedLessonIndex.lesson === lessonIndex;
+                              selectedLessonIndex.chapter === chapterIndex
+                              && selectedLessonIndex.lesson === lessonIndex;
                             return (
                               <div
                                 key={lessonIndex}
-                                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer group ${
-                                  isSelected
-                                    ? "bg-primary/10 text-primary"
-                                    : "hover:bg-muted/50"
+                                className={`group flex cursor-pointer items-center gap-3 rounded-lg p-3 ${
+                                  isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted/50"
                                 }`}
                                 onClick={() => {
                                   setSelectedLessonIndex({ chapter: chapterIndex, lesson: lessonIndex });
-                                  setShowFlashcards(false);
+                                  setCardFlipped(false);
                                 }}
                               >
-                                <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center">
+                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted">
                                   <span className="text-xs">{lessonIndex + 1}</span>
                                 </div>
                                 <span className="flex-1 text-sm">{lesson.title}</span>
-                                <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                               </div>
                             );
                           })}
@@ -243,11 +259,10 @@ export default function PreviewCourse() {
               </CardContent>
             </Card>
 
-            {/* Selected lesson content */}
             {selectedLesson && (
               <Card>
                 <CardHeader>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="mb-1 flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">
                       Ch. {selectedLessonIndex.chapter + 1}, Lesson {selectedLessonIndex.lesson + 1}
                     </Badge>
@@ -255,22 +270,23 @@ export default function PreviewCourse() {
                   <CardTitle>{selectedLesson.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <Streamdown>{selectedLesson.content}</Streamdown>
+                  <div className="prose prose-sm max-w-none dark:prose-invert">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {selectedLesson.content}
+                    </ReactMarkdown>
                   </div>
 
-                  {/* Key terms from this lesson */}
-                  {selectedLesson.keyTerms.length > 0 && (
-                    <div className="mt-8 pt-6 border-t">
-                      <h3 className="font-semibold text-base mb-4 flex items-center gap-2">
-                        <BookOpen className="w-4 h-4 text-primary" />
-                        Key Terms ({selectedLesson.keyTerms.length})
+                  {selectedLesson.glossaryTerms.length > 0 && (
+                    <div className="mt-8 border-t pt-6">
+                      <h3 className="mb-4 flex items-center gap-2 text-base font-semibold">
+                        <BookOpen className="h-4 w-4 text-primary" />
+                        Key Terms ({selectedLesson.glossaryTerms.length})
                       </h3>
                       <div className="space-y-3">
-                        {selectedLesson.keyTerms.map((term, i) => (
-                          <div key={i} className="p-3 rounded-lg bg-muted/50">
-                            <span className="font-medium text-sm">{term.term}</span>
-                            <span className="text-sm text-muted-foreground"> — {term.definition}</span>
+                        {selectedLesson.glossaryTerms.map((term) => (
+                          <div key={term.term} className="rounded-lg bg-muted/50 p-3">
+                            <span className="text-sm font-medium">{term.term}</span>
+                            <span className="text-sm text-muted-foreground"> - {term.definition}</span>
                           </div>
                         ))}
                       </div>
@@ -281,211 +297,131 @@ export default function PreviewCourse() {
             )}
           </div>
 
-          {/* Sidebar */}
           <div className="space-y-6">
-            {/* Sign-in CTA */}
-            {!user && (
-              <Card className="border-primary/30 bg-gradient-to-b from-primary/5 to-transparent">
-                <CardContent className="pt-6 space-y-4">
-                  <div className="text-center">
-                    <GraduationCap className="w-10 h-10 mx-auto text-primary mb-3" />
-                    <h3 className="font-semibold text-lg mb-1">Save this course</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Sign in to save, customize, and unlock all features.
-                    </p>
-                  </div>
-                  <Button className="w-full gap-2" asChild>
-                    <a href={getLoginUrl()}>
-                      <Key className="w-4 h-4" />
-                      Sign In to Save
-                    </a>
-                  </Button>
-                  <p className="text-xs text-center text-muted-foreground">
-                    Or generate another preview — no account needed.
+            <Card className="border-primary/30 bg-gradient-to-b from-primary/5 to-transparent">
+              <CardContent className="space-y-4 pt-6">
+                <div className="text-center">
+                  <Sparkles className="mx-auto mb-3 h-10 w-10 text-primary" />
+                  <h3 className="text-lg font-semibold mb-1">Turn preview into a saved course</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Keep this exact outline and generate the persisted course with chat, flashcards, quizzes, and PDF export.
                   </p>
-                </CardContent>
-              </Card>
-            )}
+                </div>
+                <Button className="w-full gap-2" onClick={handleCreateCourse} disabled={createCourse.isPending}>
+                  {createCourse.isPending ? (
+                    <>
+                      <Sparkles className="h-4 w-4 animate-pulse" />
+                      Creating Course...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4" />
+                      Create Full Course
+                    </>
+                  )}
+                </Button>
+                <Button variant="outline" className="w-full gap-2" asChild>
+                  <Link href="/create">
+                    <RotateCcw className="h-4 w-4" />
+                    Adjust Settings
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
 
-            {/* Flashcard Preview */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Layers className="w-5 h-5 text-emerald-500" />
                   Flashcard Preview
                 </CardTitle>
-                <CardDescription>
-                  {allKeyTerms.length} cards from key terms
-                </CardDescription>
+                <CardDescription>{allKeyTerms.length} cards from generated key terms</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {allKeyTerms.length > 0 ? (
                   <>
-                    {/* Flashcard */}
                     <div
-                      className="relative h-48 rounded-xl border-2 border-dashed border-primary/20 bg-muted/30 cursor-pointer flex items-center justify-center p-6 transition-all hover:border-primary/40"
+                      className="relative flex h-48 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-primary/20 bg-muted/30 p-6 transition-all hover:border-primary/40"
                       onClick={handleFlipCard}
                     >
                       <div className="text-center">
                         {!cardFlipped ? (
                           <>
-                            <p className="font-semibold text-lg mb-2">
-                              {allKeyTerms[currentCardIndex]?.term}
-                            </p>
-                            <p className="text-xs text-muted-foreground">Tap to reveal definition</p>
+                            <p className="mb-2 text-lg font-semibold">{allKeyTerms[currentCardIndex]?.term}</p>
+                            <p className="text-xs text-muted-foreground">Click to reveal definition</p>
                           </>
                         ) : (
                           <>
-                            <p className="text-sm leading-relaxed">
-                              {allKeyTerms[currentCardIndex]?.definition}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-2">Tap to see term</p>
+                            <p className="text-sm leading-relaxed">{allKeyTerms[currentCardIndex]?.definition}</p>
+                            <p className="mt-2 text-xs text-muted-foreground">Click to show term</p>
                           </>
                         )}
                       </div>
                     </div>
-
-                    {/* Card navigation */}
                     <div className="flex items-center justify-between">
                       <Button variant="ghost" size="sm" onClick={handlePrevCard}>
-                        <ArrowLeft className="w-4 h-4" />
+                        <ArrowLeft className="h-4 w-4" />
                       </Button>
                       <span className="text-sm text-muted-foreground">
                         {currentCardIndex + 1} / {allKeyTerms.length}
                       </span>
                       <Button variant="ghost" size="sm" onClick={handleNextCard}>
-                        <ArrowRight className="w-4 h-4" />
+                        <ArrowRight className="h-4 w-4" />
                       </Button>
-                    </div>
-
-                    {/* Spaced repetition teaser */}
-                    <div className="p-3 rounded-lg bg-muted/50 text-center">
-                      <Lock className="w-4 h-4 mx-auto text-muted-foreground mb-1" />
-                      <p className="text-xs text-muted-foreground">
-                        Sign in to unlock spaced repetition scheduling and track mastery across sessions.
-                      </p>
                     </div>
                   </>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No key terms found in this preview.
+                  <p className="py-4 text-center text-sm text-muted-foreground">
+                    No key terms were generated for this preview.
                   </p>
                 )}
               </CardContent>
             </Card>
 
-            {/* AI Chat Teaser */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <MessageCircle className="w-5 h-5 text-primary" />
-                  AI Chapter Chat
+                  Full Course Unlocks
                 </CardTitle>
-                <CardDescription>
-                  Ask questions about any lesson
-                </CardDescription>
+                <CardDescription>Preview shows the structure. The full course enables the study loop.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Sample chat bubbles */}
-                <div className="space-y-3">
-                  <div className="flex justify-end">
-                    <div className="max-w-[85%] rounded-lg px-3 py-2 text-sm bg-primary text-primary-foreground">
-                      Can you explain this concept more simply?
+              <CardContent className="space-y-3">
+                {[
+                  { icon: MessageCircle, label: "Lesson AI chat", desc: "Ask questions inside every lesson with context." },
+                  { icon: Layers, label: "Spaced repetition", desc: "Generate and review flashcards across the course." },
+                  { icon: Download, label: "PDF export", desc: "Download the course as a clean PDF." },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.label} className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                        <Icon className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{item.label}</p>
+                        <p className="text-xs text-muted-foreground">{item.desc}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex justify-start">
-                    <div className="max-w-[85%] rounded-lg px-3 py-2 text-sm bg-muted">
-                      Of course! Think of it like this...
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <div className="max-w-[85%] rounded-lg px-3 py-2 text-sm bg-primary text-primary-foreground">
-                      Give me a real-world example
-                    </div>
-                  </div>
-                  <div className="flex justify-start">
-                    <div className="max-w-[85%] rounded-lg px-3 py-2 text-sm bg-muted text-muted-foreground italic">
-                      ...
-                    </div>
-                  </div>
-                </div>
-
-                {/* Locked input */}
-                <div className="relative">
-                  <Input
-                    placeholder="Ask a question..."
-                    disabled
-                    className="pr-10 opacity-60"
-                  />
-                  <Button size="icon" className="absolute right-1 top-1 h-8 w-8" disabled>
-                    <Send className="w-3 h-3" />
-                  </Button>
-                </div>
-
-                {/* Microcopy about chat persistence */}
-                <div className="p-3 rounded-lg bg-muted/50 space-y-2">
-                  <div className="flex items-start gap-2">
-                    <Lock className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">Sign in to chat.</span>{" "}
-                      Chapter chat lets you ask questions about any lesson and get instant AI explanations.
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <RotateCcw className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">Chat is session-based.</span>{" "}
-                      Conversations reset when you leave the page. Save important answers to your notes to keep them.
-                    </p>
-                  </div>
-                </div>
-
-                {!user && (
-                  <Button className="w-full gap-2" variant="outline" asChild>
-                    <a href={getLoginUrl()}>
-                      <MessageCircle className="w-4 h-4" />
-                      Sign In to Start Chatting
-                    </a>
-                  </Button>
-                )}
+                  );
+                })}
               </CardContent>
             </Card>
 
-            {/* Feature unlock summary */}
-            {!user && (
+            {previewData.relatedTopics && previewData.relatedTopics.length > 0 && (
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Full features with sign-in</CardTitle>
+                  <CardTitle className="text-lg">Related Topics</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {[
-                      { icon: Sparkles, label: "Save and customize courses", desc: "Adjust length, depth, and approach" },
-                      { icon: MessageCircle, label: "AI chapter chat", desc: "Ask questions inside every lesson" },
-                      { icon: Layers, label: "Spaced repetition flashcards", desc: "SM-2 algorithm tracks your mastery" },
-                      { icon: Download, label: "PDF export", desc: "Download courses with illustrations" },
-                      { icon: Key, label: "Bring your own API key", desc: "Use OpenAI, Anthropic, or Grok" },
-                    ].map((item, i) => {
-                      const Icon = item.icon;
-                      return (
-                        <div key={i} className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                            <Icon className="w-4 h-4 text-primary" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">{item.label}</p>
-                            <p className="text-xs text-muted-foreground">{item.desc}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <Button className="w-full gap-2 mt-4" asChild>
-                    <a href={getLoginUrl()}>
-                      <GraduationCap className="w-4 h-4" />
-                      Sign In to Unlock Everything
-                    </a>
-                  </Button>
+                <CardContent className="space-y-3">
+                  {previewData.relatedTopics.map((topic) => (
+                    <div key={topic.title} className="rounded-lg border p-3">
+                      <p className="text-sm font-medium">{topic.title}</p>
+                      {topic.description && (
+                        <p className="mt-1 text-xs text-muted-foreground">{topic.description}</p>
+                      )}
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             )}

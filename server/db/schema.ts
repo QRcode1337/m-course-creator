@@ -78,3 +78,27 @@ export const illustrations = sqliteTable("illustrations", {
   prompt: text("prompt").notNull(),
   orderIndex: integer("order_index").notNull().default(0),
 });
+
+export const importedDocuments = sqliteTable("imported_documents", {
+  id: text("id").primaryKey(),
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull(),
+  storedPath: text("stored_path").notNull(),
+  fileSize: integer("file_size").notNull(),
+  status: text("status").notNull().default("ready"),
+  extractedContent: text("extracted_content"),
+  wordCount: integer("word_count"),
+  title: text("title"),
+  errorMessage: text("error_message"),
+  courseId: text("course_id").references(() => courses.id, { onDelete: "set null" }),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const userNotes = sqliteTable("user_notes", {
+  id: text("id").primaryKey(),
+  lessonId: text("lesson_id").notNull().references(() => lessons.id, { onDelete: "cascade" }),
+  content: text("content").notNull().default(""),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});

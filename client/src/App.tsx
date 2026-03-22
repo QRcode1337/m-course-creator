@@ -15,6 +15,8 @@ import Settings from "./pages/Settings";
 import CourseView from "./pages/CourseView";
 import LessonView from "./pages/LessonView";
 import CreateCourse from "./pages/CreateCourse";
+import ImportDocument from "./pages/ImportDocument";
+import PreviewCourse from "./pages/PreviewCourse";
 import NotFound from "./pages/NotFound";
 
 function AppRoutes() {
@@ -22,6 +24,8 @@ function AppRoutes() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/create" component={CreateCourse} />
+      <Route path="/import" component={ImportDocument} />
+      <Route path="/preview" component={PreviewCourse} />
       <Route path="/library" component={Library} />
       <Route path="/graph" component={GraphView} />
       <Route path="/knowledge-graph" component={KnowledgeGraph} />
