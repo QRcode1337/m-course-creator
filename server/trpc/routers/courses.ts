@@ -2,7 +2,9 @@ import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { createAIProvider } from "../../ai/factory";
+import type { GeneratedCourseArchitecture } from "../../ai/types";
 import { schema } from "../../db";
+import { buildCoursePdfExport } from "../../lib/course-pdf-export";
 import { getCoursesTree } from "../../lib/course-tree";
 import { makeId } from "../../lib/id";
 import { getGlobalSettings } from "../../lib/settings";
@@ -18,12 +20,44 @@ export const coursesRouter = createTRPCRouter({
     return courses[0] ?? null;
   }),
 
+  generateArchitecture: publicProcedure
+    .input(
+      z.object({
+        topic: z.string().min(2),
+        approach: z.string().optional(),
+        familiarityLevel: z.string().optional(),
+        courseComplexity: z.enum(["generic", "advanced"]).optional(),
+        assessmentAnswers: z
+          .array(z.object({ question: z.string().min(1), answer: z.string().min(1) }))
+          .optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const settings = await getGlobalSettings(ctx.db);
+      const provider = createAIProvider(settings);
+      const requirements = (input.assessmentAnswers || [])
+        .map((a) => `${a.question}: ${a.answer}`)
+        .join("\n");
+
+      const architecture = await provider.generateCourseArchitecture({
+        topic: input.topic,
+        approach: input.approach,
+        familiarityLevel: input.familiarityLevel,
+        requirements,
+        courseComplexity: input.courseComplexity ?? "generic",
+      });
+
+      return { architecture };
+    }),
+
   generate: publicProcedure
     .input(
       z.object({
         topic: z.string().min(2),
         approach: z.string().optional(),
         familiarityLevel: z.string().optional(),
+        courseComplexity: z.enum(["generic", "advanced"]).optional(),
+        architecture: z.any().optional(),
         assessmentAnswers: z
           .array(z.object({ question: z.string().min(1), answer: z.string().min(1) }))
           .optional(),
@@ -37,11 +71,22 @@ export const coursesRouter = createTRPCRouter({
         .map((a) => `${a.question}: ${a.answer}`)
         .join("\n");
 
-      const generated = await provider.generateCourse({
+      const architecture = (input.architecture as GeneratedCourseArchitecture | undefined)
+        || (await provider.generateCourseArchitecture({
+          topic: input.topic,
+          approach: input.approach,
+          familiarityLevel: input.familiarityLevel,
+          requirements,
+          courseComplexity: input.courseComplexity ?? "generic",
+        }));
+
+      const generated = await provider.generateCourseFromArchitecture({
         topic: input.topic,
         approach: input.approach,
         familiarityLevel: input.familiarityLevel,
         requirements,
+        courseComplexity: input.courseComplexity ?? architecture.courseComplexity ?? "generic",
+        architecture,
       });
 
       const courseId = makeId();
@@ -95,7 +140,7 @@ export const coursesRouter = createTRPCRouter({
         }
       });
 
-      return { courseId };
+      return { courseId, architecture };
     }),
 
   delete: publicProcedure.input(z.object({ courseId: z.string().min(1) })).mutation(async ({ ctx, input }) => {
@@ -103,10 +148,20 @@ export const coursesRouter = createTRPCRouter({
     return { success: true };
   }),
 
-  exportPdf: publicProcedure.input(z.object({ courseId: z.string().min(1) })).mutation(() => {
-    throw new TRPCError({
-      code: "NOT_IMPLEMENTED",
-      message: "PDF export is planned for post-MVP.",
-    });
-  }),
+  exportPdf: publicProcedure
+    .input(z.object({ courseId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const pdfExport = await buildCoursePdfExport(ctx.db, input.courseId);
+      if (!pdfExport) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Course not found.",
+        });
+      }
+
+      return {
+        filename: pdfExport.filename,
+        base64: pdfExport.buffer.toString("base64"),
+      };
+    }),
 });

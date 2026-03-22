@@ -11,6 +11,18 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["../server/**/*.ts"],
-  "exclude": ["../server/tests/**/*.ts"]
+  "include": [
+    "../server/index.ts",
+    "../server/app.ts",
+    "../server/config.ts",
+    "../server/db.ts",
+    "../server/db/**/*.ts",
+    "../server/lib/**/*.ts",
+    "../server/ai/**/*.ts",
+    "../server/trpc/**/*.ts"
+  ],
+  "exclude": [
+    "../server/tests/**/*.ts",
+    "../server/*.test.ts"
+  ]
 }

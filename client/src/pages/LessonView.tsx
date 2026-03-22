@@ -45,6 +45,12 @@ export default function LessonView() {
 
   const regenerate = trpc.lessons.regenerate.useMutation();
   const chat = trpc.lessons.chat.useMutation();
+  const generateMedia = trpc.media.generate.useMutation({
+    onSuccess: async () => {
+      await utils.lessons.getById.invalidate({ lessonId });
+      setShowMediaDialog(false);
+    },
+  });
 
   const handleToggleComplete = (checked: boolean) => {
     toggleComplete.mutate({ lessonId, completed: checked });
@@ -68,6 +74,11 @@ export default function LessonView() {
     } catch (error) {
       console.error("Chat error:", error);
     }
+  };
+
+  const handleGenerateMedia = async (customPrompt: string) => {
+    const prompt = customPrompt.trim() || `Create an educational illustration for the lesson "${lesson?.title ?? "this lesson"}"`;
+    await generateMedia.mutateAsync({ lessonId, prompt });
   };
 
   const renderContent = (content: string) => {
@@ -268,13 +279,14 @@ export default function LessonView() {
       </div>
 
       {/* Media Generation Dialog */}
-      {showMediaDialog && (
-        <MediaGenerationDialog
-          lessonId={lessonId}
-          lessonTitle={lesson.title}
-          onClose={() => setShowMediaDialog(false)}
-        />
-      )}
+      <MediaGenerationDialog
+        open={showMediaDialog}
+        onOpenChange={setShowMediaDialog}
+        lessonTitle={lesson.title}
+        lessonContent={lesson.content || ""}
+        onGenerate={handleGenerateMedia}
+        isGenerating={generateMedia.isPending}
+      />
     </div>
   );
 }

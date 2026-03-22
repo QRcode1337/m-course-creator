@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1768278046090,
+      "tag": "0000_graceful_daimon_hellstrom",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1768278187576,
+      "tag": "0001_talented_shen",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1768279619213,
+      "tag": "0002_lowly_pestilence",
+      "breakpoints": true
+    }
+  ]
+}

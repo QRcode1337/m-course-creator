@@ -1,11 +1,18 @@
 import OpenAI from "openai";
 import { config } from "../../config";
-import type { AIProvider } from "../types";
-import { courseGenerationPrompt } from "../prompts/courseGeneration";
+import type { AIProvider, GeneratedCourseArchitecture } from "../types";
+import { courseArchitecturePrompt } from "../prompts/courseArchitecture";
+import { courseFromArchitecturePrompt } from "../prompts/courseFromArchitecture";
 import { quizGenerationPrompt } from "../prompts/quizGeneration";
 import { lessonChatPrompt } from "../prompts/lessonChat";
-import { fallbackCourse, fallbackQuiz } from "../fallback";
-import { parseCourseJson, parseQuizJson } from "../parser";
+import {
+  fallbackCourse,
+  fallbackCourseArchitecture,
+  fallbackCourseFromArchitecture,
+  fallbackQuiz,
+} from "../fallback";
+import { parseCourseArchitectureJson, parseCourseJson, parseQuizJson } from "../parser";
+import { applyArchitectureToGeneratedCourse, ensureLessonQuality, normalizeGeneratedCourse } from "../course-quality";
 
 export class OpenAIProvider implements AIProvider {
   private client: OpenAI | null;
@@ -19,24 +26,73 @@ export class OpenAIProvider implements AIProvider {
     return this.settings.model || config.defaultOpenAiModel;
   }
 
-  async generateCourse(params: {
+  async generateCourseArchitecture(params: {
     topic: string;
     approach?: string;
     familiarityLevel?: string;
     requirements?: string;
+    courseComplexity?: "generic" | "advanced";
   }) {
-    if (!this.client) return fallbackCourse(params.topic);
+    if (!this.client) return fallbackCourseArchitecture(params.topic, params.courseComplexity || "generic");
 
     try {
       const completion = await this.client.chat.completions.create({
         model: this.getModel(),
         temperature: 0.2,
-        messages: [{ role: "user", content: courseGenerationPrompt(params) }],
+        messages: [{ role: "user", content: courseArchitecturePrompt(params) }],
       });
       const raw = completion.choices[0]?.message?.content || "";
-      return parseCourseJson(raw);
+      return parseCourseArchitectureJson(raw);
     } catch {
-      return fallbackCourse(params.topic);
+      return fallbackCourseArchitecture(params.topic, params.courseComplexity || "generic");
+    }
+  }
+
+  async generateCourseFromArchitecture(params: {
+    topic: string;
+    approach?: string;
+    familiarityLevel?: string;
+    requirements?: string;
+    courseComplexity?: "generic" | "advanced";
+    architecture: GeneratedCourseArchitecture;
+  }) {
+    if (!this.client) {
+      return applyArchitectureToGeneratedCourse(
+        params.topic,
+        params.architecture,
+        fallbackCourseFromArchitecture(params.topic, params.architecture),
+      );
+    }
+
+    try {
+      const completion = await this.client.chat.completions.create({
+        model: this.getModel(),
+        temperature: 0.2,
+        messages: [{ role: "user", content: courseFromArchitecturePrompt(params) }],
+      });
+      const raw = completion.choices[0]?.message?.content || "";
+      return applyArchitectureToGeneratedCourse(params.topic, params.architecture, parseCourseJson(raw));
+    } catch {
+      return applyArchitectureToGeneratedCourse(
+        params.topic,
+        params.architecture,
+        fallbackCourseFromArchitecture(params.topic, params.architecture),
+      );
+    }
+  }
+
+  async generateCourse(params: {
+    topic: string;
+    approach?: string;
+    familiarityLevel?: string;
+    requirements?: string;
+    courseComplexity?: "generic" | "advanced";
+  }) {
+    try {
+      const architecture = await this.generateCourseArchitecture(params);
+      return this.generateCourseFromArchitecture({ ...params, architecture });
+    } catch {
+      return normalizeGeneratedCourse(fallbackCourse(params.topic, params.courseComplexity || "generic"), params.topic);
     }
   }
 
@@ -87,20 +143,48 @@ export class OpenAIProvider implements AIProvider {
   }) {
     if (!this.client) {
       return {
-        content: `${params.existingContent}\n\n## Refreshed Summary\n- Reframed key points for clarity\n- Added concise next-step guidance`,
+        content: ensureLessonQuality(
+          `${params.existingContent}\n\n## Refreshed Summary\n- Reframed key points for clarity\n- Added concise next-step guidance`,
+          params.lessonTitle,
+          params.courseTitle,
+          600,
+        ),
       };
     }
 
     try {
-      const prompt = `Rewrite this lesson content with improved clarity and structure. Return markdown only.\n\nCourse: ${params.courseTitle}\nLesson: ${params.lessonTitle}\n\nOriginal:\n${params.existingContent}`;
+      const prompt = `Rewrite this lesson content with improved clarity and structure. Return markdown only.\n\nCourse: ${params.courseTitle}\nLesson: ${params.lessonTitle}\n\nRequired lesson format (in order):
+- ## Learning Objectives
+- ## Lecture Content
+- ## Examples
+- ## Exercises
+  - ### Beginner
+  - ### Intermediate
+  - ### Advanced
+- ## Quiz and Answer Key
+- ## Misconceptions
+- ## Further Reading
+
+Length requirements:
+- At least 600 words.
+- Keep content practical and specific.
+
+Original:\n${params.existingContent}`;
       const completion = await this.client.chat.completions.create({
         model: this.getModel(),
         temperature: 0.3,
         messages: [{ role: "user", content: prompt }],
       });
-      return { content: completion.choices[0]?.message?.content || params.existingContent };
+      return {
+        content: ensureLessonQuality(
+          completion.choices[0]?.message?.content || params.existingContent,
+          params.lessonTitle,
+          params.courseTitle,
+          600,
+        ),
+      };
     } catch {
-      return { content: params.existingContent };
+      return { content: ensureLessonQuality(params.existingContent, params.lessonTitle, params.courseTitle, 600) };
     }
   }
 }

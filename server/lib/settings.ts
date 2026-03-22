@@ -11,8 +11,11 @@ export async function getGlobalSettings(database: DbType) {
   });
 
   return {
-    preferredProvider: row?.preferredProvider ?? "openai",
+    preferredProvider: row?.preferredProvider ?? config.defaultAiProvider,
     openaiApiKey: row?.openaiApiKey ?? config.openAiApiKey ?? null,
     openaiModel: row?.openaiModel ?? config.defaultOpenAiModel,
+    ollamaBaseUrl: row?.ollamaBaseUrl ?? config.defaultOllamaBaseUrl,
+    ollamaModel: row?.ollamaModel ?? config.defaultOllamaModel,
+    ollamaApiKey: process.env.OLLAMA_API_KEY || null,
   };
 }

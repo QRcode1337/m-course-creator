@@ -25,7 +25,7 @@ Rebuild the Manus "Personal Course Creator" as a standalone, self-hosted applica
 ## Project Structure
 
 ```
-manus-course-creator/
+m-course-creator/
 ├── package.json              # workspace root
 ├── client/
 │   ├── index.html

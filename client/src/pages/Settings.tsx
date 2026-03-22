@@ -9,11 +9,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Alert, AlertDescription } from "../components/ui/alert";
 import { Loader2, Info } from "lucide-react";
 
+type PreferredProvider = "openai" | "ollama";
+
+type SettingsForm = {
+  preferredProvider: PreferredProvider;
+  anthropicApiKey: string;
+  openaiApiKey: string;
+  openrouterApiKey: string;
+  grokApiKey: string;
+  anthropicModel: string;
+  openaiModel: string;
+  openrouterModel: string;
+  grokModel: string;
+};
+
 export default function Settings() {
   const { loading } = useAuth();
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const { data: currentSettings, isLoading } = trpc.settings.get.useQuery();
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<SettingsForm>({
     preferredProvider: "openai",
     anthropicApiKey: "",
     openaiApiKey: "",
@@ -27,7 +41,11 @@ export default function Settings() {
 
   useEffect(() => {
     if (currentSettings) {
-      setSettings((prev) => ({ ...prev, ...currentSettings }));
+      setSettings((prev) => ({
+        ...prev,
+        ...currentSettings,
+        preferredProvider: currentSettings.preferredProvider === "ollama" ? "ollama" : "openai",
+      }));
     }
   }, [currentSettings]);
 
@@ -73,13 +91,14 @@ export default function Settings() {
             <Label htmlFor="provider">AI Provider</Label>
             <Select
               value={settings.preferredProvider}
-              onValueChange={(value) => setSettings({ ...settings, preferredProvider: value })}
+              onValueChange={(value) => setSettings({ ...settings, preferredProvider: value as PreferredProvider })}
             >
               <SelectTrigger id="provider">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="openai">OpenAI</SelectItem>
+                <SelectItem value="ollama">Ollama</SelectItem>
               </SelectContent>
             </Select>
           </div>

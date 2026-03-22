@@ -1,13 +1,26 @@
 import type Database from "better-sqlite3";
 
+function hasColumn(sqlite: Database.Database, table: string, column: string) {
+  const rows = sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  return rows.some((row) => row.name === column);
+}
+
 export function ensureSchema(sqlite: Database.Database) {
   sqlite.pragma("foreign_keys = ON");
+
+  const defaultProvider = process.env.AI_PROVIDER === "ollama" ? "ollama" : "openai";
+  const defaultOpenAiModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const defaultOllamaBaseUrl = process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434";
+  const defaultOllamaModel = process.env.OLLAMA_MODEL || "llama3.1:8b";
+
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS settings (
       id INTEGER PRIMARY KEY,
       preferred_provider TEXT NOT NULL DEFAULT 'openai',
       openai_api_key TEXT,
       openai_model TEXT NOT NULL DEFAULT 'gpt-4o-mini',
+      ollama_base_url TEXT NOT NULL DEFAULT 'http://127.0.0.1:11434',
+      ollama_model TEXT NOT NULL DEFAULT 'llama3.1:8b',
       updated_at INTEGER NOT NULL
     );
 
@@ -97,10 +110,17 @@ export function ensureSchema(sqlite: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_illustrations_lesson_id ON illustrations(lesson_id);
   `);
 
+  if (!hasColumn(sqlite, "settings", "ollama_base_url")) {
+    sqlite.exec("ALTER TABLE settings ADD COLUMN ollama_base_url TEXT NOT NULL DEFAULT 'http://127.0.0.1:11434'");
+  }
+  if (!hasColumn(sqlite, "settings", "ollama_model")) {
+    sqlite.exec("ALTER TABLE settings ADD COLUMN ollama_model TEXT NOT NULL DEFAULT 'llama3.1:8b'");
+  }
+
   const now = Date.now();
   sqlite.prepare(`
-    INSERT INTO settings (id, preferred_provider, openai_model, updated_at)
-    VALUES (1, 'openai', 'gpt-4o-mini', ?)
+    INSERT INTO settings (id, preferred_provider, openai_model, ollama_base_url, ollama_model, updated_at)
+    VALUES (1, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO NOTHING
-  `).run(now);
+  `).run(defaultProvider, defaultOpenAiModel, defaultOllamaBaseUrl, defaultOllamaModel, now);
 }

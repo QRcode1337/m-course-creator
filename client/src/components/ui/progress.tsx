@@ -1,11 +1,26 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export function Progress({ value = 0, className }: { value?: number; className?: string }) {
-  const safeValue = Math.max(0, Math.min(100, value));
+type ProgressProps = React.ComponentProps<"div"> & {
+  value?: number;
+};
+
+function Progress({ className, value = 0, ...props }: ProgressProps) {
+  const clamped = Math.max(0, Math.min(100, value));
+
   return (
-    <div className={cn("relative h-2 w-full overflow-hidden rounded-full bg-muted", className)}>
-      <div className="h-full bg-primary transition-all" style={{ width: `${safeValue}%` }} />
+    <div
+      data-slot="progress"
+      className={cn("bg-primary/20 relative h-2 w-full overflow-hidden rounded-full", className)}
+      {...props}
+    >
+      <div
+        data-slot="progress-indicator"
+        className="bg-primary h-full transition-all"
+        style={{ width: `${clamped}%` }}
+      />
     </div>
   );
 }
+
+export { Progress };

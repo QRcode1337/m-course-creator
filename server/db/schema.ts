@@ -5,6 +5,8 @@ export const settings = sqliteTable("settings", {
   preferredProvider: text("preferred_provider").notNull().default("openai"),
   openaiApiKey: text("openai_api_key"),
   openaiModel: text("openai_model").notNull().default("gpt-4o-mini"),
+  ollamaBaseUrl: text("ollama_base_url").notNull().default("http://127.0.0.1:11434"),
+  ollamaModel: text("ollama_model").notNull().default("llama3.1:8b"),
   updatedAt: integer("updated_at").notNull(),
 });
 

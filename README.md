@@ -1,13 +1,22 @@
-# Manus Course Creator (MVP)
+# m-course-creator (Production Trunk)
 
-Local-first AI course generator with lessons, quizzes, flashcards (SM-2), and a course library.
+Self-owned AI course platform (Fly.io backend + Netlify frontend).  
+Canonical base: `m-course-creator`.
+
+`course-creatorv3` is used only as a donor/reference repo. Manus runtime coupling is not part of trunk runtime.
 
 ## Stack
 
 - Client: Vite + React 19 + TypeScript + Tailwind v4 + shadcn-style UI
 - API: Express + tRPC
 - Database: SQLite + Drizzle ORM + better-sqlite3
-- AI: OpenAI-first provider abstraction with fallback generation when no API key is set
+- AI: OpenAI + Ollama provider abstraction with deterministic fallback generation
+
+## Runtime Boundaries
+
+- Frontend API target is controlled by `VITE_API_BASE_URL` in [`client/src/main.tsx`](client/src/main.tsx).
+- All app data operations go through `/api/trpc` on your backend.
+- Backend CORS policy can be locked to Netlify origin via `CORS_ORIGIN`.
 
 ## Quick Start
 
@@ -52,25 +61,64 @@ npm test             # Run unit + integration tests
 
 ## Environment Variables
 
+Server:
 - `PORT` (default: `3001`)
 - `DATABASE_PATH` (default: `./data/app.db`)
-- `OPENAI_API_KEY` (optional for live OpenAI generation)
+- `CORS_ORIGIN` (optional, recommended in production: your Netlify origin)
+- `AI_PROVIDER` (`openai` or `ollama`, default: `openai`)
+- `OPENAI_API_KEY`
 - `OPENAI_MODEL` (default: `gpt-4o-mini`)
+- `OLLAMA_BASE_URL` (default: `http://127.0.0.1:11434`)
+- `OLLAMA_MODEL` (default: `llama3.1:8b`)
+- `OLLAMA_API_KEY` (optional)
 
-If `OPENAI_API_KEY` is not set, the app uses deterministic fallback generation so the full learning loop still works locally.
+Frontend:
+- `VITE_API_BASE_URL` (empty in local same-origin/proxy setups; set to Fly backend URL on Netlify)
 
-## MVP Scope Implemented
+## Deploy: Fly.io Backend
 
-- Course generation from topic (with approach/familiarity input)
-- Course library and course detail views
-- Lesson view with markdown content, glossary, completion toggle, AI chat, and regenerate
-- Quiz generation + submit + scoring
-- Flashcard initialization + due queue + rating with SM-2 scheduling
-- Global settings for OpenAI provider key/model
+This repo includes [`fly.toml`](fly.toml).
 
-## Deferred (Post-MVP)
+1. Set secrets/env on Fly (example)
 
-- Full auth/multi-user isolation
-- Production-grade knowledge graph recommendations
-- Calendar optimization
-- PDF export and media generation production pipeline
+```bash
+fly secrets set OPENAI_API_KEY=... CORS_ORIGIN=https://<your-site>.netlify.app
+```
+
+2. Deploy
+
+```bash
+fly deploy
+```
+
+3. Verify backend
+
+```bash
+curl https://manus-course-backend-1774135937.fly.dev/api/health
+```
+
+## Deploy: Netlify Frontend
+
+This repo includes [`netlify.toml`](netlify.toml) with:
+- build command: `npm run build:client`
+- publish dir: `dist/client`
+- SPA fallback redirect to `/index.html`
+
+Set this Netlify env var:
+- `VITE_API_BASE_URL=https://manus-course-backend-1774135937.fly.dev`
+
+Then deploy the site normally from this repo.
+
+## Current Product Flow (Audited)
+
+- Course creation: `/` (wizard) and `/create` call `trpc.courses.generate`
+- Two-stage generation: architecture + full lessons in `server/trpc/routers/courses.ts`
+- Lesson view: chat + regenerate in `server/trpc/routers/lessons.ts`
+- Quiz flow: generate + submit in `server/trpc/routers/quizzes.ts`
+- Flashcards: initialize + due queue + SM-2 rating in `server/trpc/routers/flashcards.ts`
+- PDF export: server-side course PDF generation in `server/lib/pdf.ts` via `trpc.courses.exportPdf`
+- Persistence: SQLite at `DATABASE_PATH` with Drizzle schema in `server/db/schema.ts`
+
+## Donor Porting Log
+
+See [`docs/v3-port-log.md`](docs/v3-port-log.md) for imported donor features and explicitly rejected Manus-coupled code.

@@ -39,12 +39,54 @@ export interface GeneratedQuiz {
   questions: GeneratedQuizQuestion[];
 }
 
+export type CourseComplexity = "generic" | "advanced";
+
+export interface ArchitectureLesson {
+  id: string;
+  title: string;
+  summary: string;
+  dependsOn: string[];
+}
+
+export interface ArchitectureChapter {
+  title: string;
+  lessons: ArchitectureLesson[];
+}
+
+export interface GeneratedCourseArchitecture {
+  courseTitle: string;
+  audience: string;
+  prerequisites: string[];
+  learningOutcomes: string[];
+  chapters: ArchitectureChapter[];
+  dependencyMap: Array<{ fromLessonId: string; toLessonId: string; reason: string }>;
+  glossaryCandidates: string[];
+  finalProjectConcept: string;
+  courseComplexity: CourseComplexity;
+}
+
 export interface AIProvider {
+  generateCourseArchitecture(params: {
+    topic: string;
+    approach?: string;
+    familiarityLevel?: string;
+    requirements?: string;
+    courseComplexity?: CourseComplexity;
+  }): Promise<GeneratedCourseArchitecture>;
+  generateCourseFromArchitecture(params: {
+    topic: string;
+    approach?: string;
+    familiarityLevel?: string;
+    requirements?: string;
+    courseComplexity?: CourseComplexity;
+    architecture: GeneratedCourseArchitecture;
+  }): Promise<GeneratedCourse>;
   generateCourse(params: {
     topic: string;
     approach?: string;
     familiarityLevel?: string;
     requirements?: string;
+    courseComplexity?: CourseComplexity;
   }): Promise<GeneratedCourse>;
   generateQuiz(params: {
     lessonTitle: string;

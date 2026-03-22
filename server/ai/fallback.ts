@@ -1,76 +1,187 @@
-import type { GeneratedCourse, GeneratedQuiz } from "./types";
+import { ensureLessonQuality } from "./course-quality";
+import type {
+  CourseComplexity,
+  GeneratedCourse,
+  GeneratedCourseArchitecture,
+  GeneratedQuiz,
+} from "./types";
 
-export function fallbackCourse(topic: string): GeneratedCourse {
-  return {
-    title: `${topic} Fundamentals`,
-    description: `A practical introduction to ${topic} with structured lessons and practice.`,
-    chapters: [
-      {
-        title: `Foundations of ${topic}`,
-        description: `Core ideas, terminology, and mental models for ${topic}.`,
-        lessons: [
-          {
-            title: `What is ${topic}?`,
-            lessonType: "concept",
-            content: `# What is ${topic}?\n\n## Core idea\n${topic} is a field you can learn through concepts, examples, and practice.\n\n## Why it matters\n- Builds practical understanding\n- Helps you reason clearly\n- Enables deeper applications\n\n## Quick example\nUse this lesson as a baseline before advanced topics.`,
-            glossaryTerms: [
-              { term: "Fundamentals", definition: "The basic principles that form the core of a topic." },
-              { term: "Concept", definition: "An abstract idea used to understand a domain." },
-            ],
-            relatedTopics: [
-              { title: `History of ${topic}`, description: "How the field evolved over time." },
-              { title: `Applications of ${topic}`, description: "Where this topic is used in practice." },
-            ],
-          },
-          {
-            title: `${topic} in Practice`,
-            lessonType: "application",
-            content: `# ${topic} in Practice\n\n## Practical workflow\n1. Define the goal\n2. Select the right method\n3. Evaluate outcomes\n\n## Common mistakes\n- Skipping fundamentals\n- Overcomplicating early\n- Ignoring feedback loops`,
-            glossaryTerms: [
-              { term: "Workflow", definition: "A repeatable sequence of steps to complete work." },
-              { term: "Feedback Loop", definition: "A process where outputs inform future actions." },
-            ],
-            relatedTopics: [
-              { title: `Case studies in ${topic}`, description: "Real scenarios and outcomes." },
-              { title: `Advanced ${topic}`, description: "Deeper methods and frameworks." },
-            ],
-          },
-        ],
-      },
-      {
-        title: `Building Competence in ${topic}`,
-        description: "Techniques for retention, practice, and mastery.",
-        lessons: [
-          {
-            title: `Key Patterns`,
-            lessonType: "pattern",
-            content: `# Key Patterns\n\n## Patterns to remember\n- Reuse proven structures\n- Measure outcomes\n- Iterate systematically`,
-            glossaryTerms: [
-              { term: "Pattern", definition: "A recurring solution to a recurring problem." },
-              { term: "Iteration", definition: "Repeated improvement through cycles." },
-            ],
-            relatedTopics: [
-              { title: "Deliberate practice", description: "Focused repetition with feedback." },
-              { title: "Performance metrics", description: "How to track improvement." },
-            ],
-          },
-          {
-            title: `Review and Next Steps`,
-            lessonType: "review",
-            content: `# Review and Next Steps\n\n## Review\nSummarize the main models and examples.\n\n## Next steps\n- Practice with new prompts\n- Build a small project\n- Teach the topic to someone else`,
-            glossaryTerms: [
-              { term: "Retention", definition: "The ability to remember and apply knowledge over time." },
-              { term: "Transfer", definition: "Applying learning to new contexts." },
-            ],
-            relatedTopics: [
-              { title: "Project-based learning", description: "Learn by building." },
-              { title: "Peer teaching", description: "Use explanation as reinforcement." },
-            ],
-          },
-        ],
-      },
+function lessonCountsForComplexity(complexity: CourseComplexity) {
+  if (complexity === "advanced") return [4, 4, 4, 4, 4];
+  return [4, 4, 4];
+}
+
+function genericLessonTitleTemplates(topic: string) {
+  return [
+    [
+      `Introduction to ${topic}`,
+      `Core Concepts of ${topic}`,
+      `${topic} Terminology and Mental Models`,
+      `Baseline Practices in ${topic}`,
     ],
+    [
+      `${topic} Systems and Interdependencies`,
+      `Applied Methods in ${topic}`,
+      `Common Patterns and Use Cases in ${topic}`,
+      `Case Study: ${topic} in Practice`,
+    ],
+    [
+      `Implementation Techniques for ${topic}`,
+      `Integrating ${topic} into Real Workflows`,
+      `Pitfalls, Risks, and Responsible Practice in ${topic}`,
+      `Capstone Planning and Future Directions for ${topic}`,
+    ],
+  ];
+}
+
+function advancedLessonTitleTemplates(topic: string) {
+  return [
+    [
+      `Advanced Foundations of ${topic}`,
+      `Formal Models in ${topic}`,
+      `Analytical Frameworks for ${topic}`,
+      `Measurement and Evaluation in ${topic}`,
+    ],
+    [
+      `${topic} Architecture and Design Decisions`,
+      `Optimization Strategies in ${topic}`,
+      `Tradeoff Analysis for ${topic}`,
+      `Reliability and Robustness in ${topic}`,
+    ],
+    [
+      `${topic} Integration Patterns`,
+      `Complex Scenario Planning in ${topic}`,
+      `Scaling ${topic} Workflows`,
+      `Operational Governance for ${topic}`,
+    ],
+    [
+      `Advanced Case Studies in ${topic}`,
+      `Failure Analysis in ${topic}`,
+      `Iterative Improvement Loops in ${topic}`,
+      `High-Impact Applications of ${topic}`,
+    ],
+    [
+      `${topic} Capstone Scoping`,
+      `Capstone Implementation for ${topic}`,
+      `Capstone Validation and Review`,
+      `${topic} Frontier Research and Next Steps`,
+    ],
+  ];
+}
+
+export function fallbackCourseArchitecture(
+  topic: string,
+  complexity: CourseComplexity = "generic",
+): GeneratedCourseArchitecture {
+  const lessonCounts = lessonCountsForComplexity(complexity);
+  const chapterThemes = [
+    `Foundations of ${topic}`,
+    `${topic} in Practice`,
+    `Integration and Application of ${topic}`,
+    `Advanced Patterns in ${topic}`,
+    `${topic} Capstone Development`,
+    `${topic} Optimization`,
+    `${topic} Future Directions`,
+  ];
+  const lessonTitleSets =
+    complexity === "advanced" ? advancedLessonTitleTemplates(topic) : genericLessonTitleTemplates(topic);
+  let lessonIndex = 1;
+  const chapters = lessonCounts.map((lessonCount, chapterIndex) => ({
+    title: chapterThemes[chapterIndex] || `${topic} Chapter ${chapterIndex + 1}`,
+    lessons: Array.from({ length: lessonCount }).map((_, lessonInChapterIndex) => {
+      const currentId = `L${lessonIndex}`;
+      const dependsOn = lessonIndex === 1 ? [] : [`L${lessonIndex - 1}`];
+      const defaultTitle =
+        lessonTitleSets[chapterIndex]?.[lessonInChapterIndex]
+        || `${topic} Lesson ${lessonIndex}`;
+      const lesson = {
+        id: currentId,
+        title: defaultTitle,
+        summary: `Build practical understanding of ${topic} through concept, application, and review.`,
+        dependsOn,
+      };
+      lessonIndex += 1;
+      return lesson;
+    }),
+  }));
+
+  const allLessons = chapters.flatMap((c) => c.lessons);
+  const dependencyMap = allLessons
+    .filter((lesson) => lesson.dependsOn.length > 0)
+    .map((lesson) => ({
+      fromLessonId: lesson.dependsOn[0],
+      toLessonId: lesson.id,
+      reason: "This lesson builds directly on concepts from the previous lesson.",
+    }));
+
+  return {
+    courseTitle: `${topic} ${complexity === "advanced" ? "Advanced Program" : "Foundations"}`,
+    audience:
+      complexity === "advanced"
+        ? `Learners with prior exposure who want deeper, production-grade ${topic} capability.`
+        : `Learners who want a practical and structured introduction to ${topic}.`,
+    prerequisites:
+      complexity === "advanced"
+        ? ["Baseline familiarity with the domain", "Comfort with self-directed practice"]
+        : ["General curiosity", "Willingness to practice consistently"],
+    learningOutcomes: [
+      `Explain core ${topic} concepts with correct terminology`,
+      `Apply ${topic} frameworks to realistic scenarios`,
+      `Evaluate tradeoffs and choose defensible approaches`,
+      `Create a final project that demonstrates cumulative mastery`,
+    ],
+    chapters,
+    dependencyMap,
+    glossaryCandidates: [
+      `${topic} fundamentals`,
+      `${topic} workflow`,
+      `${topic} architecture`,
+      `${topic} tradeoff`,
+      `${topic} validation`,
+      `${topic} optimization`,
+      `${topic} risk management`,
+      `${topic} best practices`,
+    ],
+    finalProjectConcept: `Design and present a practical ${topic} solution that demonstrates planning, implementation, evaluation, and iteration.`,
+    courseComplexity: complexity,
   };
+}
+
+export function fallbackCourseFromArchitecture(
+  topic: string,
+  architecture: GeneratedCourseArchitecture,
+): GeneratedCourse {
+  return {
+    title: architecture.courseTitle,
+    description: `A structured course on ${topic} for ${architecture.audience}.`,
+    chapters: architecture.chapters.map((chapter) => ({
+      title: chapter.title,
+      description: `Cumulative progression through ${chapter.title}.`,
+      lessons: chapter.lessons.map((lesson) => ({
+        title: lesson.title,
+        lessonType: "concept",
+        content: ensureLessonQuality(
+          `# ${lesson.title}\n\nThis lesson develops skills required for the final project while reinforcing prior dependencies: ${lesson.dependsOn.join(", ") || "none"}.`,
+          lesson.title,
+          topic,
+          600,
+        ),
+        glossaryTerms: [
+          { term: `${topic} concept`, definition: `A core concept used in ${lesson.title}.` },
+          { term: `${topic} dependency`, definition: "A prerequisite relationship between lessons." },
+        ],
+        relatedTopics: [
+          { title: `${topic} implementation`, description: "Practical implementation patterns." },
+          { title: `${topic} evaluation`, description: "How to validate outcomes and iterate." },
+        ],
+      })),
+    })),
+  };
+}
+
+export function fallbackCourse(topic: string, complexity: CourseComplexity = "generic"): GeneratedCourse {
+  const architecture = fallbackCourseArchitecture(topic, complexity);
+  return fallbackCourseFromArchitecture(topic, architecture);
 }
 
 export function fallbackQuiz(lessonTitle: string): GeneratedQuiz {

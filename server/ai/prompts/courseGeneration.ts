@@ -35,7 +35,19 @@ Schema:
 Constraints:
 - 3-5 chapters
 - 2-4 lessons per chapter
-- lesson content in markdown with headings and bullet points
+- at least 2 lessons total in the course
+- each lesson content must be markdown and follow this exact section outline:
+  1) ## Learning Objectives
+  2) ## Core Lesson Content
+  3) ## Key Terms
+  4) ## Concrete Examples
+  5) ## Reflection and Synthesis Questions
+  6) ## Quiz and Answer Key
+  7) ## Misconceptions
+  8) ## Further Reading
+- learning objectives must be measurable and achievable
+- each lesson must be at least 700 words of real explanatory content
+- no placeholder examples; concrete examples must contain actual information
 - glossaryTerms: 2-5 per lesson
 - relatedTopics: 2-4 per lesson
 `;

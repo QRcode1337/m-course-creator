@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "../utils/trpc";
 import { useAuth } from "../hooks/useAuth";
 import { useStyleTheme } from "../contexts/StyleThemeContext";
 import { toast } from "sonner";
+import { getApiUrl } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import {
@@ -23,36 +25,47 @@ export default function CourseView() {
   const params = useParams<{ id: string }>();
   const courseId = params.id;
   const { styleTheme, setStyleTheme } = useStyleTheme();
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const { data: course, isLoading } = trpc.courses.getById.useQuery(
     { courseId },
     { enabled: !!user && !!courseId }
   );
 
-  const exportPdf = trpc.courses.exportPdf.useMutation({
-    onSuccess: (data: any) => {
-      // Convert base64/binary to blob and download
-      const bytes = new Uint8Array(data);
-      const blob = new Blob([bytes], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = data.filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success("PDF downloaded successfully!");
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to export PDF: ${error.message}`);
-    },
-  });
-
   const initFlashcards = trpc.flashcards.initializeFromCourse.useMutation();
 
-  const handleExportPdf = () => {
-    exportPdf.mutate({ courseId });
+  const handleExportPdf = async () => {
+    try {
+      setIsExportingPdf(true);
+      const response = await fetch(getApiUrl(`/api/courses/${encodeURIComponent(courseId)}/pdf`), {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to export PDF.");
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get("Content-Disposition");
+      const filenameMatch = contentDisposition?.match(/filename="([^"]+)"/i);
+      const filename = filenameMatch?.[1]
+        || `${course?.title?.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "course"}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+      toast.success("PDF downloaded successfully!");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to export PDF.";
+      toast.error(`Failed to export PDF: ${message}`);
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   const handleStudyFlashcards = async () => {
@@ -179,13 +192,13 @@ export default function CourseView() {
                     )}
                   </Button>
                 )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleExportPdf}
-                  disabled={exportPdf.isPending}
-                >
-                  {exportPdf.isPending ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportPdf}
+                    disabled={isExportingPdf}
+                  >
+                  {isExportingPdf ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Exporting...
