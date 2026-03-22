@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
-import { Loader2, Palette, Layers, Brain, Download } from "lucide-react";
+import { Loader2, Palette, Layers, Brain, Download, Image } from "lucide-react";
 
 const STYLE_THEMES: Record<string, string> = {
   /* style theme names mapped to labels */
@@ -33,6 +33,16 @@ export default function CourseView() {
   );
 
   const initFlashcards = trpc.flashcards.initializeFromCourse.useMutation();
+  const utils = trpc.useUtils();
+  const generateAllImages = trpc.media.generateAllForCourse.useMutation({
+    onSuccess: async (result) => {
+      await utils.courses.getById.invalidate({ courseId });
+      toast.success(`Images updated. Generated ${result.generated}, skipped ${result.skipped}.`);
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to generate course images.");
+    },
+  });
 
   const handleExportPdf = async () => {
     try {
@@ -192,12 +202,30 @@ export default function CourseView() {
                     )}
                   </Button>
                 )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExportPdf}
-                    disabled={isExportingPdf}
-                  >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => generateAllImages.mutate({ courseId, skipExisting: true })}
+                  disabled={generateAllImages.isPending}
+                >
+                  {generateAllImages.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating Images...
+                    </>
+                  ) : (
+                    <>
+                      <Image className="w-4 h-4 mr-2" />
+                      Generate All Images
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportPdf}
+                  disabled={isExportingPdf}
+                >
                   {isExportingPdf ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />

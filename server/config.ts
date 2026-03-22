@@ -18,9 +18,18 @@ export const config = {
   databasePath: resolvedDbPath,
   uploadsDir,
   corsOrigin: corsOrigin && corsOrigin.length > 0 ? corsOrigin : undefined,
-  defaultAiProvider: process.env.AI_PROVIDER === "ollama" ? "ollama" : "openai",
+  defaultAiProvider: ["openai", "ollama", "anthropic", "xai", "lmstudio"].includes(process.env.AI_PROVIDER || "")
+    ? (process.env.AI_PROVIDER as "openai" | "ollama" | "anthropic" | "xai" | "lmstudio")
+    : "openai",
   openAiApiKey: process.env.OPENAI_API_KEY,
   defaultOpenAiModel: process.env.OPENAI_MODEL || "gpt-4o-mini",
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  defaultAnthropicModel: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
+  xaiApiKey: process.env.XAI_API_KEY,
+  defaultXaiModel: process.env.XAI_MODEL || "grok-4.20-beta-latest-non-reasoning",
   defaultOllamaBaseUrl: process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434",
   defaultOllamaModel: process.env.OLLAMA_MODEL || "llama3.1:8b",
+  defaultLmStudioBaseUrl: process.env.LMSTUDIO_BASE_URL || "http://localhost:1234/v1",
+  defaultLmStudioModel: process.env.LMSTUDIO_MODEL || "local-model",
+  lmStudioApiKey: process.env.LMSTUDIO_API_KEY,
 };

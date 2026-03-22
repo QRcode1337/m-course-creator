@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useParams } from "wouter";
+import { closestCenter, DndContext, type DragEndEvent } from "@dnd-kit/core";
+import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { trpc } from "../utils/trpc";
 import { useAuth } from "../hooks/useAuth";
 import { useStyleTheme } from "../contexts/StyleThemeContext";
@@ -18,6 +20,7 @@ import { LessonContent } from "../components/LessonContent";
 import { Quiz } from "../components/Quiz";
 import { MediaGenerationDialog } from "../components/MediaGenerationDialog";
 import { RelatedTopics } from "../components/RelatedTopics";
+import { SortableIllustration } from "../components/SortableIllustration";
 import { AIChatBox, type Message } from "../components/AIChatBox";
 import { toast } from "sonner";
 import { Loader2, ArrowLeft, ArrowRight, Sparkles, Image, Palette, Lightbulb, BookOpen, HelpCircle, Zap, NotebookPen, Save } from "lucide-react";
@@ -48,6 +51,10 @@ export default function LessonView() {
     { lessonId },
     { enabled: !!lessonId },
   );
+  const { data: illustrations = [] } = trpc.media.getByLesson.useQuery(
+    { lessonId },
+    { enabled: !!lessonId },
+  );
 
   const toggleComplete = trpc.lessons.toggleComplete.useMutation({
     onSuccess: () => {
@@ -60,7 +67,25 @@ export default function LessonView() {
   const generateMedia = trpc.media.generate.useMutation({
     onSuccess: async () => {
       await utils.lessons.getById.invalidate({ lessonId });
+      await utils.media.getByLesson.invalidate({ lessonId });
       setShowMediaDialog(false);
+    },
+  });
+  const deleteMedia = trpc.media.delete.useMutation({
+    onSuccess: async () => {
+      await utils.lessons.getById.invalidate({ lessonId });
+      await utils.media.getByLesson.invalidate({ lessonId });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to delete illustration.");
+    },
+  });
+  const reorderMedia = trpc.media.reorder.useMutation({
+    onSuccess: async () => {
+      await utils.media.getByLesson.invalidate({ lessonId });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to reorder illustrations.");
     },
   });
   const saveNote = trpc.notes.save.useMutation({
@@ -130,6 +155,18 @@ export default function LessonView() {
         }))}
       />
     );
+  };
+
+  const handleIllustrationDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = illustrations.findIndex((item) => item.id === active.id);
+    const newIndex = illustrations.findIndex((item) => item.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const reordered = arrayMove(illustrations, oldIndex, newIndex).map((item) => item.id);
+    reorderMedia.mutate({ lessonId, orderedIds: reordered });
   };
 
   if (isLoading) {
@@ -260,8 +297,36 @@ export default function LessonView() {
               <h1 className="text-4xl font-bold leading-tight">{lesson.title}</h1>
             </div>
 
-            {/* Sortable Illustrations */}
-            {/* (DnD Kit sortable illustrations would go here) */}
+            {illustrations.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold">Lesson Media</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Drag to reorder. Hover to regenerate or delete.
+                  </p>
+                </div>
+                <DndContext collisionDetection={closestCenter} onDragEnd={handleIllustrationDragEnd}>
+                  <SortableContext
+                    items={illustrations.map((item) => item.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-4">
+                      {illustrations.map((item) => (
+                        <SortableIllustration
+                          key={item.id}
+                          id={item.id}
+                          imageUrl={item.imageUrl}
+                          prompt={item.prompt}
+                          lessonTitle={lesson.title}
+                          onDelete={() => deleteMedia.mutate({ illustrationId: item.id })}
+                          onRegenerate={() => generateMedia.mutate({ lessonId, prompt: item.prompt })}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </div>
+            )}
 
             {/* Main Lesson Content (Markdown) */}
             {lesson.content && renderContent(lesson.content)}

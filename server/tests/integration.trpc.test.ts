@@ -113,4 +113,45 @@ describe("tRPC integration", () => {
 
     sqlite.close();
   });
+
+  it("supports lesson media generation, reorder, delete, and course batch generation", async () => {
+    const { caller, sqlite } = makeCaller();
+
+    const generated = await caller.courses.generate({
+      topic: "Algorithms",
+      approach: "balanced",
+      familiarityLevel: "introductory",
+      assessmentAnswers: [{ question: "Goal", answer: "Build intuition" }],
+    });
+
+    const course = await caller.courses.getById({ courseId: generated.courseId });
+    const firstLessonId = (course?.chapters[0] as any).lessons[0].id as string;
+
+    await caller.media.generate({ lessonId: firstLessonId, prompt: "Algorithm flow diagram" });
+    await caller.media.generate({ lessonId: firstLessonId, prompt: "Sorting illustration" });
+
+    const illustrations = await caller.media.getByLesson({ lessonId: firstLessonId });
+    expect(illustrations).toHaveLength(2);
+
+    await caller.media.reorder({
+      lessonId: firstLessonId,
+      orderedIds: [illustrations[1].id, illustrations[0].id],
+    });
+
+    const reordered = await caller.media.getByLesson({ lessonId: firstLessonId });
+    expect(reordered[0].id).toBe(illustrations[1].id);
+
+    await caller.media.delete({ illustrationId: reordered[0].id });
+    const remaining = await caller.media.getByLesson({ lessonId: firstLessonId });
+    expect(remaining).toHaveLength(1);
+
+    const batch = await caller.media.generateAllForCourse({
+      courseId: generated.courseId,
+      skipExisting: true,
+    });
+    expect(batch.total).toBeGreaterThan(0);
+    expect(batch.generated + batch.skipped).toBe(batch.total);
+
+    sqlite.close();
+  });
 });

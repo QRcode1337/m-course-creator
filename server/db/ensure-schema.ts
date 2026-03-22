@@ -5,13 +5,32 @@ function hasColumn(sqlite: Database.Database, table: string, column: string) {
   return rows.some((row) => row.name === column);
 }
 
+function addColumnIfMissing(sqlite: Database.Database, table: string, column: string, statement: string) {
+  if (hasColumn(sqlite, table, column)) return;
+
+  try {
+    sqlite.exec(statement);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("duplicate column name")) {
+      return;
+    }
+    throw error;
+  }
+}
+
 export function ensureSchema(sqlite: Database.Database) {
   sqlite.pragma("foreign_keys = ON");
 
-  const defaultProvider = process.env.AI_PROVIDER === "ollama" ? "ollama" : "openai";
+  const defaultProvider = ["openai", "ollama", "anthropic", "xai", "lmstudio"].includes(process.env.AI_PROVIDER || "")
+    ? (process.env.AI_PROVIDER as "openai" | "ollama" | "anthropic" | "xai" | "lmstudio")
+    : "openai";
   const defaultOpenAiModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const defaultAnthropicModel = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
+  const defaultXaiModel = process.env.XAI_MODEL || "grok-4.20-beta-latest-non-reasoning";
   const defaultOllamaBaseUrl = process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434";
   const defaultOllamaModel = process.env.OLLAMA_MODEL || "llama3.1:8b";
+  const defaultLmStudioBaseUrl = process.env.LMSTUDIO_BASE_URL || "http://localhost:1234/v1";
+  const defaultLmStudioModel = process.env.LMSTUDIO_MODEL || "local-model";
 
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS settings (
@@ -19,8 +38,15 @@ export function ensureSchema(sqlite: Database.Database) {
       preferred_provider TEXT NOT NULL DEFAULT 'openai',
       openai_api_key TEXT,
       openai_model TEXT NOT NULL DEFAULT 'gpt-4o-mini',
+      anthropic_api_key TEXT,
+      anthropic_model TEXT NOT NULL DEFAULT 'claude-sonnet-4-20250514',
+      xai_api_key TEXT,
+      xai_model TEXT NOT NULL DEFAULT 'grok-4.20-beta-latest-non-reasoning',
       ollama_base_url TEXT NOT NULL DEFAULT 'http://127.0.0.1:11434',
       ollama_model TEXT NOT NULL DEFAULT 'llama3.1:8b',
+      lmstudio_base_url TEXT NOT NULL DEFAULT 'http://localhost:1234/v1',
+      lmstudio_model TEXT NOT NULL DEFAULT 'local-model',
+      lmstudio_api_key TEXT,
       updated_at INTEGER NOT NULL
     );
 
@@ -139,17 +165,33 @@ export function ensureSchema(sqlite: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_user_notes_lesson_id ON user_notes(lesson_id);
   `);
 
-  if (!hasColumn(sqlite, "settings", "ollama_base_url")) {
-    sqlite.exec("ALTER TABLE settings ADD COLUMN ollama_base_url TEXT NOT NULL DEFAULT 'http://127.0.0.1:11434'");
-  }
-  if (!hasColumn(sqlite, "settings", "ollama_model")) {
-    sqlite.exec("ALTER TABLE settings ADD COLUMN ollama_model TEXT NOT NULL DEFAULT 'llama3.1:8b'");
-  }
+  addColumnIfMissing(sqlite, "settings", "ollama_base_url", "ALTER TABLE settings ADD COLUMN ollama_base_url TEXT NOT NULL DEFAULT 'http://127.0.0.1:11434'");
+  addColumnIfMissing(sqlite, "settings", "ollama_model", "ALTER TABLE settings ADD COLUMN ollama_model TEXT NOT NULL DEFAULT 'llama3.1:8b'");
+  addColumnIfMissing(sqlite, "settings", "anthropic_api_key", "ALTER TABLE settings ADD COLUMN anthropic_api_key TEXT");
+  addColumnIfMissing(sqlite, "settings", "anthropic_model", `ALTER TABLE settings ADD COLUMN anthropic_model TEXT NOT NULL DEFAULT '${defaultAnthropicModel}'`);
+  addColumnIfMissing(sqlite, "settings", "xai_api_key", "ALTER TABLE settings ADD COLUMN xai_api_key TEXT");
+  addColumnIfMissing(sqlite, "settings", "xai_model", `ALTER TABLE settings ADD COLUMN xai_model TEXT NOT NULL DEFAULT '${defaultXaiModel}'`);
+  addColumnIfMissing(sqlite, "settings", "lmstudio_base_url", `ALTER TABLE settings ADD COLUMN lmstudio_base_url TEXT NOT NULL DEFAULT '${defaultLmStudioBaseUrl}'`);
+  addColumnIfMissing(sqlite, "settings", "lmstudio_model", `ALTER TABLE settings ADD COLUMN lmstudio_model TEXT NOT NULL DEFAULT '${defaultLmStudioModel}'`);
+  addColumnIfMissing(sqlite, "settings", "lmstudio_api_key", "ALTER TABLE settings ADD COLUMN lmstudio_api_key TEXT");
 
   const now = Date.now();
   sqlite.prepare(`
-    INSERT INTO settings (id, preferred_provider, openai_model, ollama_base_url, ollama_model, updated_at)
-    VALUES (1, ?, ?, ?, ?, ?)
+    INSERT INTO settings (
+      id, preferred_provider, openai_model, anthropic_model, xai_model,
+      ollama_base_url, ollama_model, lmstudio_base_url, lmstudio_model, updated_at
+    )
+    VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO NOTHING
-  `).run(defaultProvider, defaultOpenAiModel, defaultOllamaBaseUrl, defaultOllamaModel, now);
+  `).run(
+    defaultProvider,
+    defaultOpenAiModel,
+    defaultAnthropicModel,
+    defaultXaiModel,
+    defaultOllamaBaseUrl,
+    defaultOllamaModel,
+    defaultLmStudioBaseUrl,
+    defaultLmStudioModel,
+    now,
+  );
 }

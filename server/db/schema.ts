@@ -5,8 +5,15 @@ export const settings = sqliteTable("settings", {
   preferredProvider: text("preferred_provider").notNull().default("openai"),
   openaiApiKey: text("openai_api_key"),
   openaiModel: text("openai_model").notNull().default("gpt-4o-mini"),
+  anthropicApiKey: text("anthropic_api_key"),
+  anthropicModel: text("anthropic_model").notNull().default("claude-sonnet-4-20250514"),
+  xaiApiKey: text("xai_api_key"),
+  xaiModel: text("xai_model").notNull().default("grok-4.20-beta-latest-non-reasoning"),
   ollamaBaseUrl: text("ollama_base_url").notNull().default("http://127.0.0.1:11434"),
   ollamaModel: text("ollama_model").notNull().default("llama3.1:8b"),
+  lmStudioBaseUrl: text("lmstudio_base_url").notNull().default("http://localhost:1234/v1"),
+  lmStudioModel: text("lmstudio_model").notNull().default("local-model"),
+  lmStudioApiKey: text("lmstudio_api_key"),
   updatedAt: integer("updated_at").notNull(),
 });
 

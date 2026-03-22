@@ -17,9 +17,20 @@ import { applyArchitectureToGeneratedCourse, ensureLessonQuality, normalizeGener
 export class OpenAIProvider implements AIProvider {
   private client: OpenAI | null;
 
-  constructor(private readonly settings: { apiKey?: string | null; model?: string | null }) {
-    const key = settings.apiKey || config.openAiApiKey;
-    this.client = key ? new OpenAI({ apiKey: key }) : null;
+  constructor(private readonly settings: {
+    apiKey?: string | null;
+    model?: string | null;
+    baseUrl?: string | null;
+    fallbackApiKey?: string | null;
+    allowMissingApiKey?: boolean;
+  }) {
+    const key = settings.apiKey || settings.fallbackApiKey || config.openAiApiKey || (settings.allowMissingApiKey ? "local-api-key" : null);
+    this.client = key
+      ? new OpenAI({
+          apiKey: key,
+          baseURL: settings.baseUrl || undefined,
+        })
+      : null;
   }
 
   private getModel() {

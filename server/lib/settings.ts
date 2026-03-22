@@ -14,8 +14,15 @@ export async function getGlobalSettings(database: DbType) {
     preferredProvider: row?.preferredProvider ?? config.defaultAiProvider,
     openaiApiKey: row?.openaiApiKey ?? config.openAiApiKey ?? null,
     openaiModel: row?.openaiModel ?? config.defaultOpenAiModel,
+    anthropicApiKey: row?.anthropicApiKey ?? config.anthropicApiKey ?? null,
+    anthropicModel: row?.anthropicModel ?? config.defaultAnthropicModel,
+    xaiApiKey: row?.xaiApiKey ?? config.xaiApiKey ?? null,
+    xaiModel: row?.xaiModel ?? config.defaultXaiModel,
     ollamaBaseUrl: row?.ollamaBaseUrl ?? config.defaultOllamaBaseUrl,
     ollamaModel: row?.ollamaModel ?? config.defaultOllamaModel,
     ollamaApiKey: process.env.OLLAMA_API_KEY || null,
+    lmStudioBaseUrl: row?.lmStudioBaseUrl ?? config.defaultLmStudioBaseUrl,
+    lmStudioModel: row?.lmStudioModel ?? config.defaultLmStudioModel,
+    lmStudioApiKey: row?.lmStudioApiKey ?? config.lmStudioApiKey ?? null,
   };
 }
